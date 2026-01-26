@@ -162,55 +162,162 @@ def create_model(graphs: list[Graph]) -> str:
     classes = _extract_classes_and_properties(graphs)
     lines = ["from __future__ import annotations", "from pydantic import BaseModel", "", ""]
     sorted_class_uris = _topological_sort_classes(classes)
+    
+    # Group classes by their local name to detect duplicates needing namespace wrapping
+    local_name_to_uris = {}
     for class_uri in sorted_class_uris:
         class_info = classes[class_uri]
-        class_name = class_info["name"]
-        comment = class_info["comment"]
-        properties = class_info["properties"]
-        parent_uris = class_info["parent_uris"]
-        # Class definition
-        if parent_uris:
-            parent_names = []
-            for parent_uri in parent_uris:
-                if str(parent_uri) in classes:
-                    parent_names.append(classes[str(parent_uri)]["name"])
-            if parent_names:
-                parents_str = ", ".join(parent_names)
-                lines.append(f"class {class_name}({parents_str}):")
-            else:
-                lines.append(f"class {class_name}(BaseModel):")
+        g = class_info["graph"]
+        n3 = class_info["uri"].n3(namespace_manager=g.namespace_manager)
+        if ":" in n3:
+            prefix, local = n3.split(":", 1)
         else:
-            lines.append(f"class {class_name}(BaseModel):")
-        # Always emit docstring using template if any field is present
-        label = class_info.get("label")
-        iri = class_info.get("iri")
-        comment = class_info.get("comment")
-        if label or iri or comment:
-            docstring_first = '    """'
-            if label:
-                docstring_first += f'{label} '
-            if iri:
-                docstring_first += f'<{iri}>.'
-            if comment:
-                docstring_lines = [docstring_first, '']
-                for line in str(comment).splitlines():
-                    comment_line = line.rstrip()
-                    if comment_line and not comment_line.endswith('.'):
-                        comment_line += '.'
-                    docstring_lines.append(f'    {comment_line}')
-                docstring_lines.append('    """')
-                lines.append('\n'.join(docstring_lines))
-            else:
-                lines.append(f'{docstring_first}"""')
-        # Properties or ellipsis
-        if properties:
-            for prop_name in sorted(properties):
-                prop = properties[prop_name]
-                lines.append(f"    {prop['name']}: {prop['type']}")
+            prefix, local = "default", n3
+        if local not in local_name_to_uris:
+            local_name_to_uris[local] = []
+        local_name_to_uris[local].append((prefix, class_uri))
+    
+    # Group classes by prefix when they need namespace wrapping
+    prefix_groups = {}
+    for local_name, uri_list in local_name_to_uris.items():
+        if len(uri_list) > 1:  # Multiple classes with same local name
+            for prefix, class_uri in uri_list:
+                if prefix not in prefix_groups:
+                    prefix_groups[prefix] = []
+                prefix_groups[prefix].append(class_uri)
+    
+    # Process classes and generate output
+    processed_classes = set()
+    for class_uri in sorted_class_uris:
+        if class_uri in processed_classes:
+            continue
+            
+        class_info = classes[class_uri]
+        g = class_info["graph"]
+        n3 = class_info["uri"].n3(namespace_manager=g.namespace_manager)
+        if ":" in n3:
+            prefix, local = n3.split(":", 1)
         else:
-            lines.append("    ...")
-        lines.append("")
-        lines.append("")
+            prefix, local = "default", n3
+        
+        # Check if this class is part of a namespace group
+        if prefix in prefix_groups and class_uri in prefix_groups[prefix]:
+            # Find all classes in this prefix group
+            classes_in_prefix = [uri for uri in prefix_groups[prefix] if uri not in processed_classes]
+            
+            if classes_in_prefix:
+                # Emit wrapper class
+                lines.append(f"class {prefix}:")
+                
+                # Sort classes in prefix for deterministic order
+                for group_class_uri in sorted(classes_in_prefix):
+                    processed_classes.add(group_class_uri)
+                    group_class_info = classes[group_class_uri]
+                    group_class_name = group_class_info["name"]
+                    group_properties = group_class_info["properties"]
+                    group_parent_uris = group_class_info["parent_uris"]
+                    
+                    # Class definition inside wrapper
+                    if group_parent_uris:
+                        parent_names = []
+                        for parent_uri in group_parent_uris:
+                            if str(parent_uri) in classes:
+                                parent_names.append(classes[str(parent_uri)]["name"])
+                        if parent_names:
+                            parents_str = ", ".join(parent_names)
+                            lines.append(f"    class {group_class_name}({parents_str}):")
+                        else:
+                            lines.append(f"    class {group_class_name}(BaseModel):")
+                    else:
+                        lines.append(f"    class {group_class_name}(BaseModel):")
+                    
+                    # Docstring
+                    group_label = group_class_info.get("label")
+                    group_iri = group_class_info.get("iri")
+                    group_comment = group_class_info.get("comment")
+                    if group_label or group_iri or group_comment:
+                        docstring_first = '        """'
+                        if group_label:
+                            docstring_first += f'{group_label} '
+                        if group_iri:
+                            docstring_first += f'<{group_iri}>.'
+                        if group_comment:
+                            docstring_lines = [docstring_first, '']
+                            for line in str(group_comment).splitlines():
+                                comment_line = line.rstrip()
+                                if comment_line and not comment_line.endswith('.'):
+                                    comment_line += '.'
+                                docstring_lines.append(f'        {comment_line}')
+                            docstring_lines.append('        """')
+                            lines.append('\n'.join(docstring_lines))
+                        else:
+                            lines.append(f'{docstring_first}"""')
+                    
+                    # Properties or ellipsis
+                    if group_properties:
+                        for prop_name in sorted(group_properties):
+                            prop = group_properties[prop_name]
+                            lines.append(f"        {prop['name']}: {prop['type']}")
+                    else:
+                        lines.append("        ...")
+                    lines.append("")
+                
+                lines.append("")
+        else:
+            # Regular class without namespace wrapping
+            if class_uri not in processed_classes:
+                processed_classes.add(class_uri)
+                class_name = class_info["name"]
+                comment = class_info["comment"]
+                properties = class_info["properties"]
+                parent_uris = class_info["parent_uris"]
+                
+                # Class definition
+                if parent_uris:
+                    parent_names = []
+                    for parent_uri in parent_uris:
+                        if str(parent_uri) in classes:
+                            parent_names.append(classes[str(parent_uri)]["name"])
+                    if parent_names:
+                        parents_str = ", ".join(parent_names)
+                        lines.append(f"class {class_name}({parents_str}):")
+                    else:
+                        lines.append(f"class {class_name}(BaseModel):")
+                else:
+                    lines.append(f"class {class_name}(BaseModel):")
+                
+                # Always emit docstring using template if any field is present
+                label = class_info.get("label")
+                iri = class_info.get("iri")
+                comment = class_info.get("comment")
+                if label or iri or comment:
+                    docstring_first = '    """'
+                    if label:
+                        docstring_first += f'{label} '
+                    if iri:
+                        docstring_first += f'<{iri}>.'
+                    if comment:
+                        docstring_lines = [docstring_first, '']
+                        for line in str(comment).splitlines():
+                            comment_line = line.rstrip()
+                            if comment_line and not comment_line.endswith('.'):
+                                comment_line += '.'
+                            docstring_lines.append(f'    {comment_line}')
+                        docstring_lines.append('    """')
+                        lines.append('\n'.join(docstring_lines))
+                    else:
+                        lines.append(f'{docstring_first}"""')
+                
+                # Properties or ellipsis
+                if properties:
+                    for prop_name in sorted(properties):
+                        prop = properties[prop_name]
+                        lines.append(f"    {prop['name']}: {prop['type']}")
+                else:
+                    lines.append("    ...")
+                lines.append("")
+                lines.append("")
+    
     return "\n".join(lines).rstrip() + "\n"
 
 
