@@ -7,15 +7,15 @@ from .utils import extract_prefix_and_local, topological_sort_classes
 from .codegen import generate_docstring, generate_class_definition, generate_property_line, generate_ellipsis_line
 
 
-def create_package(graphs: list[Graph], output_dir: str, contexts: list[dict] | None = None) -> None:
-    """Generate a Python module folder structure from RDFS graphs.
+def create_package(graph: Graph, output_dir: str, context: dict | None = None) -> None:
+    """Generate a Python module folder structure from an RDFS graph.
     
     Args:
-        graphs: List of RDFLib Graph objects containing RDFS ontologies
+        graph: RDFLib Graph object containing RDFS ontology
         output_dir: Directory to write the package structure to
-        contexts: Optional list of JSON-LD @context documents providing aliases
+        context: Optional JSON-LD @context document providing aliases
     """
-    classes = extract_classes_and_properties(graphs, contexts)
+    classes = extract_classes_and_properties(graph, context)
     sorted_class_uris = topological_sort_classes(classes)
     
     # Group classes by prefix

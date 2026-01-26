@@ -7,17 +7,17 @@ from .utils import extract_prefix_and_local, topological_sort_classes
 from .codegen import generate_docstring, generate_class_definition, generate_property_line, generate_ellipsis_line
 
 
-def create_module(graphs: list[Graph], contexts: list[dict] | None = None) -> str:
-    """Transform RDFS ontologies from RDF graphs into Pydantic model code.
+def create_module(graph: Graph, context: dict | None = None) -> str:
+    """Transform RDFS ontology from an RDF graph into Pydantic model code.
     
     Args:
-        graphs: List of RDFLib Graph objects containing RDFS ontologies
-        contexts: Optional list of JSON-LD @context documents providing aliases
+        graph: RDFLib Graph object containing RDFS ontology
+        context: Optional JSON-LD @context document providing aliases
         
     Returns:
         Python code defining Pydantic models
     """
-    classes = extract_classes_and_properties(graphs, contexts)
+    classes = extract_classes_and_properties(graph, context)
     lines = ["from __future__ import annotations", "from pydantic import BaseModel", "", ""]
     sorted_class_uris = topological_sort_classes(classes)
     

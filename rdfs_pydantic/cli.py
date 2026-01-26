@@ -16,7 +16,7 @@ def module(
     """Generate Pydantic models from an RDFS ontology and print to stdout."""
     g = Graph()
     g.parse(ontology, format="turtle")
-    code = create_module([g])
+    code = create_module(g)
     print(code)
 
 @app.command()
@@ -36,7 +36,7 @@ def package(
     g = Graph()
     g.parse(ontology, format="turtle")
     Path(output_dir).mkdir(parents=True, exist_ok=True)
-    create_package([g], output_dir=output_dir)
+    create_package(g, output_dir=output_dir)
     typer.echo(f"Package written to {output_dir}")
 
 if __name__ == "__main__":

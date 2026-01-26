@@ -61,14 +61,14 @@ def test_rdfs_to_pydantic(fixture_path, suffix):
     if "@prefix rdf:" not in ontology:
         ontology = "@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .\n" + ontology
 
-    contexts = []
+    context = None
     if context_json:
-        contexts.append(json.loads(context_json))
+        context = json.loads(context_json)
 
     g = Graph()
     g.parse(data=ontology, format="turtle")
 
-    result = create_module([g], contexts=contexts)
+    result = create_module(g, context=context)
 
     assert result.strip() == expected.strip(), (
         f"[{fixture_path} | suffix={suffix}]\nExpected model:\n{expected}\n\nGot:\n{result}"

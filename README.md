@@ -50,11 +50,11 @@ Generate the Pydantic models from the ontology.
 
 ```python
 from rdflib import Graph
-from rdfs_pydantic import create_model
+from rdfs_pydantic import create_module
 
 g = Graph()
 g.parse("path/to/ontology.ttl", format="turtle")
-pydantic_code = create_model([g])
+pydantic_code = create_module(g)
 print(pydantic_code)
 ```
 
