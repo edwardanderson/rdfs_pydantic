@@ -1,22 +1,21 @@
-[testmark]:# (input)
+[testmark]:# (input-0)
 ```turtle
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 
 <http://example.org/E1> a rdfs:Class ;
-    rdfs:label "Example" ;
-    rdfs:comment "This class is used for demonstrative purposes." .
+    rdfs:comment "E1 comment" .
 ```
 
-[testmark]:# (output)
+[testmark]:# (output-0)
 ```python
 from __future__ import annotations
 from pydantic import BaseModel
 
 
 class E1(BaseModel):
-    """Example <http://example.org/E1>.
+    """<http://example.org/E1>.
 
-    This class is used for demonstrative purposes.
+    E1 comment.
     """
     ...
 ```
