@@ -51,12 +51,24 @@ def _create_prefix_package(prefix: str, class_list: list[tuple[str, str]], class
     folder = os.path.join(output_dir, prefix)
     os.makedirs(folder, exist_ok=True)
     
-    # Write __init__.py
+    # Write __init__.py with imports and model_rebuild() calls
     init_lines = []
     for local, class_uri in sorted(class_list):
-        init_lines.append(f"from .{local} import {classes[class_uri]['name']}")
+        class_name = classes[class_uri]['name']
+        init_lines.append(f"from .{local} import {class_name}")
+    
+    # Add model_rebuild() calls to resolve forward references
+    if init_lines:
+        init_lines.append("")
+        init_lines.append("# Rebuild models to resolve forward references")
+        for local, class_uri in sorted(class_list):
+            class_name = classes[class_uri]['name']
+            # Only rebuild if class has properties that reference other classes
+            if classes[class_uri]['properties']:
+                init_lines.append(f"{class_name}.model_rebuild()")
+    
     with open(os.path.join(folder, "__init__.py"), "w", encoding="utf-8") as f:
-        f.write("\n".join(init_lines) + "\n")
+        f.write("\n".join(init_lines) + "\n" if init_lines else "")
     
     # Write each class file
     for local, class_uri in class_list:
@@ -67,7 +79,7 @@ def _write_class_file(local: str, class_uri: str, prefix: str, class_list: list[
     """Write a single class file."""
     info = classes[class_uri]
     class_name = info["name"]
-    parent_uris = info["parent_uris"]
+    parent_uris = _dedupe_parent_uris(info["parent_uris"], classes)
     properties = info["properties"]
     label = info.get("label")
     iri = info.get("iri")
@@ -96,11 +108,12 @@ def _write_class_file(local: str, class_uri: str, prefix: str, class_list: list[
     else:
         lines.append("from pydantic import BaseModel")
     
-    # Parent imports must be at module level (needed for class inheritance)
+    # Parent imports at module level (needed for class inheritance)
     for imp in sorted(set(parent_imports)):
         lines.append(imp)
     
     # Property imports go under TYPE_CHECKING to avoid circular imports
+    # model_rebuild() in __init__.py will resolve forward references at runtime
     if property_imports:
         lines.append("")
         lines.append("if TYPE_CHECKING:")
@@ -151,6 +164,48 @@ def _get_parent_imports(parent_uris: list, classes: dict, current_prefix: str) -
                 imports.append(f"from ..{parent_prefix}.{parent_local} import {parent_info['name']}")
     
     return imports
+
+
+def _dedupe_parent_uris(parent_uris: list, classes: dict) -> list:
+    """Remove parent classes that are ancestors of other listed parents.
+
+    This prevents Python MRO conflicts when a class declares both a base and one
+    of that base's descendants as parents (common in noisy ontologies).
+    """
+    memo: dict[str, set[str]] = {}
+    parents = [(uri, str(uri)) for uri in parent_uris if str(uri) in classes]
+    filtered: list = []
+
+    for uri, uri_str in parents:
+        is_redundant = any(
+            uri_str in _get_ancestor_set(other_str, classes, memo)
+            for _, other_str in parents
+            if other_str != uri_str
+        )
+        if not is_redundant:
+            filtered.append(uri)
+
+    return filtered
+
+
+def _get_ancestor_set(uri_str: str, classes: dict, memo: dict[str, set[str]]) -> set[str]:
+    """Compute all ancestors for a given class URI (transitively)."""
+    if uri_str in memo:
+        return memo[uri_str]
+
+    ancestors: set[str] = set()
+    class_info = classes.get(uri_str)
+    if not class_info:
+        memo[uri_str] = ancestors
+        return ancestors
+
+    for parent_uri in class_info.get("parent_uris", []):
+        parent_str = str(parent_uri)
+        ancestors.add(parent_str)
+        ancestors.update(_get_ancestor_set(parent_str, classes, memo))
+
+    memo[uri_str] = ancestors
+    return ancestors
 
 
 def _get_property_imports(properties: dict, classes: dict, current_prefix: str, current_local: str) -> list[str]:

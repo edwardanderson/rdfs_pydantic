@@ -4,11 +4,10 @@ These tests verify that circular import errors are properly handled when:
 1. Classes have properties that reference other classes
 2. Those referenced classes (or their parents) also reference back
 
-The code generator uses TYPE_CHECKING guards to avoid circular imports:
-- Property type imports are placed inside `if TYPE_CHECKING:` blocks
-- Parent class imports remain at module level (needed for inheritance)
-- With `from __future__ import annotations`, type hints are stringified
-  at runtime but properly resolved during type checking
+The code generator handles circular imports using:
+- `from __future__ import annotations` which stringifies all annotations
+- Direct imports of all types at module level
+- Python's lazy evaluation of stringified type hints prevents import-time errors
 """
 
 import pytest
@@ -80,7 +79,7 @@ import sys
 sys.path.insert(0, '{tmp_path}')
 
 # Try to import each module - this will fail if there are circular imports
-# that aren't handled with TYPE_CHECKING or string annotations
+# that aren't handled properly by stringified annotations
 
 # Import Agent (no dependencies, should work)
 from ex.Agent import Agent

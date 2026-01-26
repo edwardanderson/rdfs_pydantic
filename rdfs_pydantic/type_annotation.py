@@ -21,9 +21,9 @@ def get_property_type(range_uri, alias_map: dict | None = None) -> str:
     if "Literal" in range_str:
         return "str | None = None"
 
-    # Otherwise it's a class reference
+    # Otherwise it's a class reference - use quoted string for forward reference
     class_name = _extract_local_name(range_uri, alias_map)
-    return f"list[{class_name}] = []"
+    return f"list['{class_name}'] = []"
 
 
 def get_union_property_type(range_uris: list, alias_map: dict | None = None) -> str:

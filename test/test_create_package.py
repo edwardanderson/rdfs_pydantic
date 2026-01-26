@@ -157,6 +157,33 @@ def test_optimized_base_multiple_inheritance(tmp_path, monkeypatch):
     assert C().model_dump() == {}
 
 
+def test_dedupes_redundant_parent_classes(tmp_path):
+    """Redundant parents (ancestor + descendant) should be collapsed to avoid MRO errors."""
+    g = Graph()
+    ex = Namespace("http://example.org/")
+    g.bind("ex", ex)
+
+    for cls in ("Base", "Mid", "Sub", "Target"):
+        g.add((ex[cls], RDF.type, RDFS.Class))
+
+    g.add((ex.Mid, RDFS.subClassOf, ex.Base))
+    g.add((ex.Sub, RDFS.subClassOf, ex.Mid))
+    g.add((ex.Target, RDFS.subClassOf, ex.Mid))
+    g.add((ex.Target, RDFS.subClassOf, ex.Sub))
+
+    out_dir = tmp_path / "pkg"
+    create_package(g, output_dir=str(out_dir))
+
+    target_file = out_dir / "ex" / "Target.py"
+    content = target_file.read_text(encoding="utf-8")
+
+    assert "class Target(Sub):" in content
+    assert "class Target(Mid, Sub)" not in content
+    assert "class Target(Sub, Mid)" not in content
+    assert "from .Sub import Sub" in content
+    assert "from .Mid import Mid" not in content
+
+
 def test_creates_missing_output_dir(tmp_path):
     g = Graph()
     ex = Namespace("http://example.org/")
