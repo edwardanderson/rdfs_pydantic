@@ -23,12 +23,13 @@ def create_model(graphs: list[Graph]) -> str:
             if str(subject) not in classes:
                 class_name = _extract_name(subject)
                 comment = g.value(subject, RDFS.comment)
-                parent = g.value(subject, RDFS.subClassOf)
+                # Collect all parent classes (for multiple inheritance)
+                parents = list(g.objects(subject, RDFS.subClassOf))
                 classes[str(subject)] = {
                     "name": class_name,
                     "comment": str(comment) if comment else None,
-                    "parent": str(parent) if parent else None,
-                    "parent_uri": parent,
+                    "parents": [str(p) for p in parents],
+                    "parent_uris": parents,
                     "properties": []
                 }
     
@@ -66,12 +67,21 @@ def create_model(graphs: list[Graph]) -> str:
         class_name = class_info["name"]
         comment = class_info["comment"]
         properties = class_info["properties"]
-        parent_uri = class_info["parent_uri"]
+        parent_uris = class_info["parent_uris"]
         
         # Class definition
-        if parent_uri and str(parent_uri) in classes:
-            parent_name = classes[str(parent_uri)]["name"]
-            lines.append(f"class {class_name}({parent_name}):")
+        if parent_uris:
+            # Multiple inheritance support
+            parent_names = []
+            for parent_uri in parent_uris:
+                if str(parent_uri) in classes:
+                    parent_names.append(classes[str(parent_uri)]["name"])
+            
+            if parent_names:
+                parents_str = ", ".join(parent_names)
+                lines.append(f"class {class_name}({parents_str}):")
+            else:
+                lines.append(f"class {class_name}(BaseModel):")
         else:
             lines.append(f"class {class_name}(BaseModel):")
         

@@ -30,8 +30,6 @@ from rdfs_pydantic import create_model
 
 g = Graph()
 g.parse("path/to/file.ttl", format="turtle")
-
-# Generate Pydantic model code
 pydantic_code = create_model([g])
 print(pydantic_code)
 ```
