@@ -1,0 +1,32 @@
+[testmark]:# (input)
+```turtle
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+<http://example.org/Person> a rdfs:Class .
+
+<http://example.org/Email> a rdfs:Class .
+
+<http://example.org/PhoneNumber> a rdfs:Class .
+
+<http://example.org/contact> a rdf:Property ;
+    rdfs:domain <http://example.org/Person> ;
+    rdfs:range <http://example.org/Email> , <http://example.org/PhoneNumber> .
+```
+
+[testmark]:# (output)
+```python
+from __future__ import annotations
+from pydantic import BaseModel
+
+
+class Email(BaseModel):
+    ...
+
+
+class PhoneNumber(BaseModel):
+    ...
+
+
+class Person(BaseModel):
+    contact: list[Email | PhoneNumber] = []
+```
