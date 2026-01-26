@@ -1,6 +1,6 @@
 import typer
 from rdflib import Graph
-from rdfs_pydantic import create_model, create_package
+from rdfs_pydantic import create_module, create_package
 from pathlib import Path
 
 app = typer.Typer()
@@ -16,7 +16,7 @@ def module(
     """Generate Pydantic models from an RDFS ontology and print to stdout."""
     g = Graph()
     g.parse(ontology, format="turtle")
-    code = create_model([g])
+    code = create_module([g])
     print(code)
 
 @app.command()

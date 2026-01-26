@@ -2,7 +2,7 @@ import pytest
 import testmark
 from pathlib import Path
 from rdflib import Graph
-from rdfs_pydantic import create_model
+from rdfs_pydantic import create_module
 import re
 
 
@@ -42,7 +42,7 @@ def test_rdfs_to_pydantic(fixture_path, suffix):
         arrange = "@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .\n" + arrange
     g = Graph()
     g.parse(data=arrange, format="turtle")
-    result = create_model([g])
+    result = create_module([g])
     assert result.strip() == expected.strip(), (
         f"[{fixture_path} | suffix={suffix}]\nExpected model:\n{expected}\n\nGot:\n{result}"
     )

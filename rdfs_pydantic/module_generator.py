@@ -7,7 +7,7 @@ from .utils import extract_prefix_and_local, topological_sort_classes
 from .codegen import generate_docstring, generate_class_definition, generate_property_line, generate_ellipsis_line
 
 
-def create_model(graphs: list[Graph]) -> str:
+def create_module(graphs: list[Graph]) -> str:
     """Transform RDFS ontologies from RDF graphs into Pydantic model code.
     
     Args:

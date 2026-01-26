@@ -101,3 +101,9 @@ class Exhibition(BaseModel):
     """
     artworks: list[Painting | Artwork] = []
 ```
+
+## Test
+
+```bash
+uv run pytest
+```
