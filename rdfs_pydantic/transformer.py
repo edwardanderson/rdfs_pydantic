@@ -1,6 +1,7 @@
 """Transform RDFS ontologies into Pydantic models."""
 
-from rdflib import Graph, Namespace
+from rdflib import Graph
+from rdflib.namespace import RDF, RDFS
 
 
 def create_model(graphs: list[Graph]) -> str:
@@ -12,10 +13,6 @@ def create_model(graphs: list[Graph]) -> str:
     Returns:
         Python code defining Pydantic models
     """
-    # Define namespaces
-    RDFS = Namespace("http://www.w3.org/2000/01/rdf-schema#")
-    RDF = Namespace("http://www.w3.org/1999/02/22-rdf-syntax-ns#")
-
     # Find all classes across all graphs
     classes = {}
     for g in graphs:
