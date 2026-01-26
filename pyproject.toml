@@ -1,0 +1,16 @@
+[project]
+name = "rdfs-pydantic"
+version = "0.1.0"
+description = "Create Pydantic models from RDFS ontologies"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "rdflib>=7.5.0",
+    "requests>=2.32.5",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+    "python-testmark>=1.0",
+]
