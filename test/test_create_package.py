@@ -1,8 +1,6 @@
 import pytest
 import testmark
 from pathlib import Path
-import tempfile
-import shutil
 from rdflib import Graph
 from rdfs_pydantic import create_package
 
