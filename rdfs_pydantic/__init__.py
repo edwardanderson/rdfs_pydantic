@@ -2,4 +2,4 @@
 
 from .transformer import create_model, create_package
 
-__all__ = ["create_model"]
+__all__ = ["create_model", "create_package"]
