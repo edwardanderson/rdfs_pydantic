@@ -2,28 +2,37 @@
 
 import os
 from rdflib import Graph
+from pydantic import BaseModel
 from .extraction import extract_classes_and_properties
-from .utils import extract_prefix_and_local, topological_sort_classes
+from .utils import extract_prefix_and_local, topological_sort_classes, sanitise_identifier
 from .codegen import generate_docstring, generate_class_definition, generate_property_line, generate_ellipsis_line
 
 
-def create_package(graph: Graph, output_dir: str, context: dict | None = None) -> None:
+def create_package(graph: Graph, output_dir: str, context: dict | None = None, base_cls: type[BaseModel] | None = None) -> None:
     """Generate a Python module folder structure from an RDFS graph.
     
     Args:
         graph: RDFLib Graph object containing RDFS ontology
         output_dir: Directory to write the package structure to
         context: Optional JSON-LD @context document providing aliases
+        base_cls: Base class type to inherit from (default: None, uses BaseModel)
     """
     classes = extract_classes_and_properties(graph, context)
     sorted_class_uris = topological_sort_classes(classes)
     
+    # Ensure output directory exists
+    os.makedirs(output_dir, exist_ok=True)
+    
     # Group classes by prefix
     prefix_to_classes = _group_by_prefix(sorted_class_uris, classes)
     
+    # Create top-level __init__.py
+    with open(os.path.join(output_dir, "__init__.py"), "w", encoding="utf-8") as f:
+        f.write("")
+    
     # Create files for each prefix
     for prefix, class_list in prefix_to_classes.items():
-        _create_prefix_package(prefix, class_list, classes, output_dir)
+        _create_prefix_package(prefix, class_list, classes, output_dir, base_cls)
 
 
 def _group_by_prefix(sorted_class_uris: list[str], classes: dict) -> dict[str, list[tuple[str, str]]]:
@@ -37,7 +46,7 @@ def _group_by_prefix(sorted_class_uris: list[str], classes: dict) -> dict[str, l
     return prefix_to_classes
 
 
-def _create_prefix_package(prefix: str, class_list: list[tuple[str, str]], classes: dict, output_dir: str) -> None:
+def _create_prefix_package(prefix: str, class_list: list[tuple[str, str]], classes: dict, output_dir: str, base_cls: type[BaseModel] | None = None) -> None:
     """Create a package directory for a given prefix with all its classes."""
     folder = os.path.join(output_dir, prefix)
     os.makedirs(folder, exist_ok=True)
@@ -51,10 +60,10 @@ def _create_prefix_package(prefix: str, class_list: list[tuple[str, str]], class
     
     # Write each class file
     for local, class_uri in class_list:
-        _write_class_file(local, class_uri, prefix, class_list, classes, folder)
+        _write_class_file(local, class_uri, prefix, class_list, classes, folder, base_cls)
 
 
-def _write_class_file(local: str, class_uri: str, prefix: str, class_list: list[tuple[str, str]], classes: dict, folder: str) -> None:
+def _write_class_file(local: str, class_uri: str, prefix: str, class_list: list[tuple[str, str]], classes: dict, folder: str, base_cls: type[BaseModel] | None = None) -> None:
     """Write a single class file."""
     info = classes[class_uri]
     class_name = info["name"]
@@ -68,14 +77,40 @@ def _write_class_file(local: str, class_uri: str, prefix: str, class_list: list[
     parent_imports = _get_parent_imports(parent_uris, classes, prefix)
     parent_names = [classes[str(parent_uri)]["name"] for parent_uri in parent_uris if str(parent_uri) in classes]
     
+    # Determine property type imports (both same-namespace and cross-namespace)
+    property_imports = _get_property_imports(properties, classes, prefix, local)
+    
     # Build class file lines
-    lines = ["from __future__ import annotations", "from pydantic import BaseModel"]
+    lines = ["from __future__ import annotations"]
+    
+    # Add TYPE_CHECKING import if there are property imports (potential circular dependencies)
+    if property_imports:
+        lines.append("from typing import TYPE_CHECKING")
+    
+    # Import base model - either BaseModel or custom base class
+    if base_cls is not None:
+        # Import the custom base class from its module
+        base_class_name = base_cls.__name__
+        base_class_module = base_cls.__module__
+        lines.append(f"from {base_class_module} import {base_class_name}")
+    else:
+        lines.append("from pydantic import BaseModel")
+    
+    # Parent imports must be at module level (needed for class inheritance)
     for imp in sorted(set(parent_imports)):
         lines.append(imp)
+    
+    # Property imports go under TYPE_CHECKING to avoid circular imports
+    if property_imports:
+        lines.append("")
+        lines.append("if TYPE_CHECKING:")
+        for imp in sorted(set(property_imports)):
+            lines.append(f"    {imp}")
+    
     lines.append("")
     
     # Class definition
-    class_def = generate_class_definition(class_name, parent_names if parent_names else None)
+    class_def = generate_class_definition(class_name, parent_names if parent_names else None, "", base_cls)
     lines.append(class_def)
     
     # Docstring
@@ -107,10 +142,57 @@ def _get_parent_imports(parent_uris: list, classes: dict, current_prefix: str) -
                 parent_prefix, parent_local = parent_n3.split(":", 1)
             else:
                 parent_prefix, parent_local = "default", parent_n3
+            parent_prefix = sanitise_identifier(parent_prefix)
+            parent_local = sanitise_identifier(parent_local)
             
             if parent_prefix == current_prefix:
                 imports.append(f"from .{parent_local} import {parent_info['name']}")
             else:
                 imports.append(f"from ..{parent_prefix}.{parent_local} import {parent_info['name']}")
+    
+    return imports
+
+
+def _get_property_imports(properties: dict, classes: dict, current_prefix: str, current_local: str) -> list[str]:
+    """Get import statements for property types.
+    
+    Extracts class names from property range URIs and generates imports for both
+    same-prefix (sibling modules) and cross-prefix references, avoiding self-imports.
+    """
+    imports: list[str] = []
+    imported_classes: set[tuple[str, str]] = set()  # (prefix, class_name) pairs
+    
+    for prop_name, prop_info in properties.items():
+        prop_type = prop_info.get("type", "")
+        ranges = prop_info.get("ranges", [])
+        
+        # Extract class URIs from ranges
+        for range_uri in ranges:
+            if str(range_uri) in classes:
+                range_info = classes[str(range_uri)]
+                range_n3 = range_info["uri"].n3(namespace_manager=range_info["graph"].namespace_manager)
+                
+                if ":" in range_n3:
+                    range_prefix, range_local = range_n3.split(":", 1)
+                else:
+                    range_prefix, range_local = "default", range_n3
+                range_prefix = sanitise_identifier(range_prefix)
+                range_local = sanitise_identifier(range_local)
+                
+                class_name = range_info["name"]
+                
+                # Skip self-import
+                if range_prefix == current_prefix and range_local == current_local:
+                    continue
+
+                key = (range_prefix, class_name)
+                if key in imported_classes:
+                    continue
+
+                if range_prefix == current_prefix:
+                    imports.append(f"from .{range_local} import {class_name}")
+                else:
+                    imports.append(f"from ..{range_prefix}.{range_local} import {class_name}")
+                imported_classes.add(key)
     
     return imports

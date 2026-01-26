@@ -1,6 +1,28 @@
-"""Utility functions for namespace, prefix, and sorting operations."""
+"""Utility functions for namespace, prefix, name sanitization, and sorting."""
 
+import keyword
+import re
 from rdflib import Graph, URIRef
+
+
+def sanitise_identifier(name: str) -> str:
+    """Sanitize a string to a valid (if imperfect) Python identifier.
+    
+    - Replaces non-alphanumeric/underscore characters with underscores.
+    - Collapses repeated underscores.
+    - Prefixes an underscore if the name starts with a digit.
+    - Appends an underscore if the name is a Python keyword.
+    - Falls back to "identifier" if the result would be empty.
+    """
+    sanitized = re.sub(r"\W", "_", str(name))
+    sanitized = re.sub(r"_+", "_", sanitized)
+    if sanitized and sanitized[0].isdigit():
+        sanitized = f"_{sanitized}"
+    if keyword.iskeyword(sanitized):
+        sanitized = f"{sanitized}_"
+    if not sanitized:
+        sanitized = "identifier"
+    return sanitized
 
 
 def extract_prefix_and_local(uri: URIRef, graph: Graph) -> tuple[str, str]:
@@ -18,7 +40,7 @@ def extract_prefix_and_local(uri: URIRef, graph: Graph) -> tuple[str, str]:
         prefix, local = n3.split(":", 1)
     else:
         prefix, local = "default", n3
-    return prefix, local
+    return sanitise_identifier(prefix), sanitise_identifier(local)
 
 
 def extract_local_name(uri) -> str:
@@ -31,7 +53,7 @@ def extract_local_name(uri) -> str:
         The local name (last component after /)
     """
     uri_str = str(uri)
-    return uri_str.split("/")[-1]
+    return sanitise_identifier(uri_str.split("/")[-1])
 
 
 def topological_sort_classes(classes: dict) -> list:

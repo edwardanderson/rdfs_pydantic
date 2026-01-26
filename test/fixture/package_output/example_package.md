@@ -64,8 +64,12 @@ class Agent(BaseModel):
 [testmark]:# (expected-Artist)
 ```python
 from __future__ import annotations
+from typing import TYPE_CHECKING
 from pydantic import BaseModel
 from .Agent import Agent
+
+if TYPE_CHECKING:
+    from .Painting import Painting
 
 class Artist(Agent):
     """<http://example.org/Artist>.
@@ -78,7 +82,11 @@ class Artist(Agent):
 [testmark]:# (expected-Artwork)
 ```python
 from __future__ import annotations
+from typing import TYPE_CHECKING
 from pydantic import BaseModel
+
+if TYPE_CHECKING:
+    from .Artist import Artist
 
 class Artwork(BaseModel):
     """<http://example.org/Artwork>.
@@ -102,7 +110,12 @@ class Painting(Artwork):
 [testmark]:# (expected-Exhibition)
 ```python
 from __future__ import annotations
+from typing import TYPE_CHECKING
 from pydantic import BaseModel
+
+if TYPE_CHECKING:
+    from .Artwork import Artwork
+    from .Painting import Painting
 
 class Exhibition(BaseModel):
     """<http://example.org/Exhibition>.
@@ -115,7 +128,8 @@ class Exhibition(BaseModel):
 [testmark]:# (expected-__init__)
 ```python
 from .Agent import Agent
+from .Artist import Artist
 from .Artwork import Artwork
-from .Painting import Painting
 from .Exhibition import Exhibition
+from .Painting import Painting
 ```

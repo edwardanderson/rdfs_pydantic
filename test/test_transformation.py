@@ -57,9 +57,11 @@ def test_rdfs_to_pydantic(fixture_path, suffix):
     if not ontology or not expected:
         pytest.skip(f"Missing arrange or expected section in {fixture_path} (suffix={suffix})")
 
-    # Add rdf prefix if missing
+    # Add standard prefixes if missing
     if "@prefix rdf:" not in ontology:
         ontology = "@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .\n" + ontology
+    if "@prefix ex:" not in ontology:
+        ontology = "@prefix ex: <http://example.org/> .\n" + ontology
 
     context = None
     if context_json:

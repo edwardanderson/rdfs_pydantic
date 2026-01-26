@@ -1,5 +1,6 @@
 """Generate type annotations for RDF properties."""
 
+from .utils import sanitise_identifier
 
 def get_property_type(range_uri, alias_map: dict | None = None) -> str:
     """Get the Python type annotation for an RDFS range.
@@ -63,5 +64,5 @@ def _extract_local_name(uri, alias_map: dict | None = None) -> str:
     """Extract the local name from a URI, honoring JSON-LD aliases when available."""
     uri_str = str(uri)
     if alias_map is not None and uri_str in alias_map:
-        return alias_map[uri_str]
-    return uri_str.split("/")[-1]
+        return sanitise_identifier(alias_map[uri_str])
+    return sanitise_identifier(uri_str.split("/")[-1])

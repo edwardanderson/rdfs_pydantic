@@ -1,10 +1,78 @@
 """Extract classes and properties from RDF graphs."""
 
+import json
+import os
+from urllib.parse import urlparse
+from urllib.request import urlopen
 from rdflib import Graph
 from rdflib.namespace import RDF, RDFS
+from .utils import sanitise_identifier
 
 
-def extract_classes_and_properties(graph: Graph, context: dict | None = None) -> dict:
+def _validate_prefix_bindings(graph: Graph) -> None:
+    """Validate that all rdfs:Class and rdf:Property instances have bound prefixes.
+    
+    Args:
+        graph: RDF graph to validate
+        
+    Raises:
+        ValueError: If any class or property lacks a bound prefix
+    """
+    unbound = []
+    
+    # Check all rdfs:Class instances
+    for subject in graph.subjects(RDF.type, RDFS.Class):
+        namespace = _get_namespace(str(subject))
+        if not _is_prefix_bound(graph, namespace):
+            unbound.append((str(subject), "rdfs:Class"))
+    
+    # Check all rdf:Property instances
+    for subject in graph.subjects(RDF.type, RDF.Property):
+        namespace = _get_namespace(str(subject))
+        if not _is_prefix_bound(graph, namespace):
+            unbound.append((str(subject), "rdf:Property"))
+    
+    if unbound:
+        error_msg = "The following IRIs lack bound prefixes:\n"
+        for iri, rdf_type in unbound:
+            error_msg += f"  - {iri} ({rdf_type})\n"
+        error_msg += "\nBind prefixes using graph.bind() or provide them in your RDF file."
+        raise ValueError(error_msg)
+
+
+def _get_namespace(iri: str) -> str:
+    """Extract the namespace (everything before the local name) from an IRI.
+    
+    Examples:
+        "http://example.org/Person" -> "http://example.org/"
+        "http://example.org#Person" -> "http://example.org#"
+    """
+    # Check for # separator (common in RDF)
+    if "#" in iri:
+        return iri.rsplit("#", 1)[0] + "#"
+    # Otherwise use / separator
+    elif "/" in iri:
+        return iri.rsplit("/", 1)[0] + "/"
+    return ""
+
+
+def _is_prefix_bound(graph: Graph, namespace: str) -> bool:
+    """Check if a namespace has a bound prefix in the graph.
+    
+    Args:
+        graph: RDF graph
+        namespace: The namespace URI (e.g., "http://example.org/")
+        
+    Returns:
+        True if the namespace is bound to a prefix, False otherwise
+    """
+    for prefix, ns in graph.namespaces():
+        if str(ns) == namespace:
+            return True
+    return False
+
+
+def extract_classes_and_properties(graph: Graph, context: dict | list | str | None = None) -> dict:
     """Extract classes and their properties from an RDF graph, applying JSON-LD context aliases.
     
     Args:
@@ -13,8 +81,12 @@ def extract_classes_and_properties(graph: Graph, context: dict | None = None) ->
         
     Returns:
         Dict mapping class URIs to class info including name, properties, parent classes, etc.
+        
+    Raises:
+        ValueError: If any rdfs:Class or rdf:Property instance lacks a bound prefix
     """
-    contexts = [context] if context else None
+    _validate_prefix_bindings(graph)
+    contexts = _normalize_contexts(context)
     alias_map = _build_alias_map(contexts)
     classes = {}
     _extract_classes(graph, classes, alias_map)
@@ -70,8 +142,8 @@ def _extract_local_name(uri, alias_map: dict) -> str:
     """Extract the local name from a URI, honoring JSON-LD aliases if provided."""
     uri_str = str(uri)
     if alias_map and uri_str in alias_map:
-        return alias_map[uri_str]
-    return uri_str.split("/")[-1]
+        return sanitise_identifier(alias_map[uri_str])
+    return sanitise_identifier(uri_str.split("/")[-1])
 
 
 def _build_alias_map(contexts: list[dict] | None) -> dict:
@@ -110,6 +182,49 @@ def _build_alias_map(contexts: list[dict] | None) -> dict:
                 alias_map[expanded_iri] = alias
 
     return alias_map
+
+
+def _normalize_contexts(context) -> list[dict] | None:
+    """Coerce context input into a list of dicts.
+
+    Supports dicts, lists/tuples of dicts, JSON strings, file paths, and HTTP(S) URLs.
+    """
+    if context is None:
+        return None
+
+    raw_items = context if isinstance(context, (list, tuple)) else [context]
+    contexts: list[dict] = []
+
+    for item in raw_items:
+        if item is None:
+            continue
+        if isinstance(item, dict):
+            contexts.append(item)
+            continue
+        if isinstance(item, str):
+            loaded = _load_context_from_str(item)
+            if isinstance(loaded, dict):
+                contexts.append(loaded)
+            continue
+
+    return contexts or None
+
+
+def _load_context_from_str(value: str):
+    """Load a context from a JSON string, file path, or URL."""
+    stripped = value.lstrip()
+    if stripped.startswith("{"):
+        return json.loads(value)
+
+    parsed = urlparse(value)
+    if parsed.scheme in {"http", "https"}:
+        with urlopen(value) as resp:
+            return json.load(resp)
+
+    if os.path.exists(value):
+        with open(value, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return None
 
 
 def _expand_iri(iri: str, prefixes: dict) -> str:
