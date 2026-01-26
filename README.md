@@ -66,25 +66,38 @@ from pydantic import BaseModel
 
 
 class Agent(BaseModel):
-    """A person or organisation"""
+    """<http://example.org/Agent>.
+
+    A person or organisation.
+    """
     name: str | None = None
 
 
 class Artist(Agent):
-    """A creator of artworks"""
+    """<http://example.org/Artist>.
+
+    A creator of artworks.
+    """
     created: list[Painting] = []
 
 
 class Artwork(BaseModel):
-    """An artistic creation"""
+    """<http://example.org/Artwork>.
+
+    An artistic creation.
+    """
     artist: list[Artist] = []
 
 
 class Painting(Artwork):
+    """<http://example.org/Painting>."""
     ...
 
 
 class Exhibition(BaseModel):
-    """A curated collection of artworks"""
+    """<http://example.org/Exhibition>.
+
+    A curated collection of artworks.
+    """
     artworks: list[Painting | Artwork] = []
 ```

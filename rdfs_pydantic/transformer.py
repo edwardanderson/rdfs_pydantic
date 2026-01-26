@@ -9,7 +9,6 @@ def create_model(graphs: list[Graph]) -> str:
     
     Args:
         graphs: List of RDFLib Graph objects containing RDFS ontologies
-        
     Returns:
         Python code defining Pydantic models
     """
@@ -20,51 +19,49 @@ def create_model(graphs: list[Graph]) -> str:
             if str(subject) not in classes:
                 class_name = _extract_name(subject)
                 comment = g.value(subject, RDFS.comment)
+                label = g.value(subject, RDFS.label)
                 # Collect all parent classes (for multiple inheritance)
                 parents = list(g.objects(subject, RDFS.subClassOf))
                 classes[str(subject)] = {
                     "name": class_name,
                     "comment": str(comment) if comment else None,
+                    "label": str(label) if label else None,
+                    "iri": str(subject),
                     "parent_uris": parents,
                     "properties": {}
                 }
 
     # Find all properties and their domains/ranges across all graphs
     for g in graphs:
-        for prop in g.subjects(RDF.type, RDF.Property):
-            domain = g.value(prop, RDFS.domain)
+        rdf_property_uri = RDF.Property
+        prop_subjects = set(g.subjects(RDF.type, rdf_property_uri))
+        for prop in prop_subjects:
+            # Support multiple domains
+            domains = list(g.objects(prop, RDFS.domain))
             # Collect all ranges for this property (supports unions)
             ranges = list(g.objects(prop, RDFS.range))
 
-            if domain and str(domain) in classes and ranges:
-                prop_name = _extract_name(prop)
-                # Handle single vs multiple ranges
-                if len(ranges) == 1:
-                    prop_type = _get_property_type(ranges[0])
-                else:
-                    # Multiple ranges: create union type
-                    prop_type = _get_union_property_type(ranges)
-                classes[str(domain)]["properties"][prop_name] = {
-                    "name": prop_name,
-                    "type": prop_type,
-                    "ranges": ranges
-                }
+            if not domains or not ranges:
+                continue
 
-    # Generate Python code
-    # Check if we need future annotations (for forward references)
-    has_forward_refs = False
-    for class_info in classes.values():
-        for prop in class_info["properties"].values():
-            if "list[" in prop["type"]:
-                has_forward_refs = True
-                break
-        if has_forward_refs:
-            break
+            prop_name = _extract_name(prop)
+            # Handle single vs multiple ranges
+            if len(ranges) == 1:
+                prop_type = _get_property_type(ranges[0])
+            else:
+                # Multiple ranges: create union type
+                prop_type = _get_union_property_type(ranges)
 
-    if has_forward_refs:
-        lines = ["from __future__ import annotations", "from pydantic import BaseModel", "", ""]
-    else:
-        lines = ["from pydantic import BaseModel", "", ""]
+            for domain in domains:
+                if str(domain) in classes:
+                    classes[str(domain)]["properties"][prop_name] = {
+                        "name": prop_name,
+                        "type": prop_type,
+                        "ranges": ranges
+                    }
+
+    # Always include future annotations for consistency
+    lines = ["from __future__ import annotations", "from pydantic import BaseModel", "", ""]
     
     # Sort classes topologically: base classes first, then dependent classes
     sorted_class_uris = _topological_sort_classes(classes)
@@ -92,13 +89,34 @@ def create_model(graphs: list[Graph]) -> str:
         else:
             lines.append(f"class {class_name}(BaseModel):")
 
-        # Docstring if comment exists
-        if comment:
-            lines.append(f'    """{comment}"""')
+        # Always emit docstring using template if any field is present
+        label = class_info.get("label")
+        iri = class_info.get("iri")
+        comment = class_info.get("comment")
+        if label or iri or comment:
+            # Compose the docstring: single-line if no comment, multi-line if comment
+            docstring_first = '    """'
+            if label:
+                docstring_first += f'{label} '
+            if iri:
+                docstring_first += f'<{iri}>.'
+            if comment:
+                docstring_lines = [docstring_first, '']  # truly empty blank line
+                for line in str(comment).splitlines():
+                    comment_line = line.rstrip()
+                    if comment_line and not comment_line.endswith('.'):
+                        comment_line += '.'
+                    docstring_lines.append(f'    {comment_line}')
+                docstring_lines.append('    """')
+                lines.append('\n'.join(docstring_lines))
+            else:
+                # Single-line docstring
+                lines.append(f'{docstring_first}"""')
 
         # Properties or ellipsis
         if properties:
-            for prop in properties.values():
+            for prop_name in sorted(properties):
+                prop = properties[prop_name]
                 lines.append(f"    {prop['name']}: {prop['type']}")
         else:
             lines.append("    ...")

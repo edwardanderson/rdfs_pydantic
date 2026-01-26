@@ -23,9 +23,11 @@ from pydantic import BaseModel
 
 
 class E1(BaseModel):
+    """<http://example.org/E1>."""
     p1: list[E1] = []
 
 
 class E2(E1):
+    """<http://example.org/E2>."""
     p2: list[E2] = []
 ```

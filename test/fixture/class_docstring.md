@@ -3,7 +3,8 @@
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 
 <http://example.org/E1> a rdfs:Class ;
-    rdfs:comment "E1 comment" .
+    rdfs:label "Example" ;
+    rdfs:comment "This class is used for demonstrative purposes." .
 ```
 
 [testmark]:# (output)
@@ -13,9 +14,9 @@ from pydantic import BaseModel
 
 
 class E1(BaseModel):
-    """<http://example.org/E1>.
+    """Example <http://example.org/E1>.
 
-    E1 comment.
+    This class is used for demonstrative purposes.
     """
     ...
 ```

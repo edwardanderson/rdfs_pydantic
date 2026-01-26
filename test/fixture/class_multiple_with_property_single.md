@@ -22,9 +22,11 @@ from pydantic import BaseModel
 
 
 class E1(BaseModel):
+    """<http://example.org/E1>."""
     p1: list[E2] = []
 
 
 class E2(BaseModel):
+    """<http://example.org/E2>."""
     p2: list[E1] = []
 ```

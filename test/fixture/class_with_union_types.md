@@ -20,13 +20,16 @@ from pydantic import BaseModel
 
 
 class Email(BaseModel):
+    """<http://example.org/Email>."""
     ...
 
 
 class PhoneNumber(BaseModel):
+    """<http://example.org/PhoneNumber>."""
     ...
 
 
 class Person(BaseModel):
+    """<http://example.org/Person>."""
     contact: list[Email | PhoneNumber] = []
 ```

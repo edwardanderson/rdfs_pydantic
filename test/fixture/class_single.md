@@ -7,9 +7,11 @@
 
 [testmark]:# (output)
 ```python
+from __future__ import annotations
 from pydantic import BaseModel
 
 
 class E1(BaseModel):
+    """<http://example.org/E1>."""
     ...
 ```

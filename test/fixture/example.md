@@ -21,7 +21,10 @@ from pydantic import BaseModel
 
 
 class Example(BaseModel):
-    """Example comment"""
+    """<http://example.org/Example>.
+
+    Example comment.
+    """
     seeAlso: list[Example] = []
     value: str | None = None
 ```
