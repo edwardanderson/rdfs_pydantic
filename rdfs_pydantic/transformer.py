@@ -1,7 +1,154 @@
-"""Transform RDFS ontologies into Pydantic models."""
-
+import os
 from rdflib import Graph
 from rdflib.namespace import RDF, RDFS
+
+
+def _extract_classes_and_properties(graphs):
+    """Extract classes and their properties from RDF graphs. Returns a dict of class_uri -> info."""
+    classes = {}
+    for g in graphs:
+        for subject in g.subjects(RDF.type, RDFS.Class):
+            if str(subject) not in classes:
+                class_name = _extract_name(subject)
+                comment = g.value(subject, RDFS.comment)
+                label = g.value(subject, RDFS.label)
+                parents = list(g.objects(subject, RDFS.subClassOf))
+                classes[str(subject)] = {
+                    "name": class_name,
+                    "comment": str(comment) if comment else None,
+                    "label": str(label) if label else None,
+                    "iri": str(subject),
+                    "parent_uris": parents,
+                    "properties": {},
+                    "uri": subject,
+                    "graph": g,
+                }
+    for g in graphs:
+        prop_subjects = set(g.subjects(RDF.type, RDF.Property))
+        for prop in prop_subjects:
+            domains = list(g.objects(prop, RDFS.domain))
+            ranges = list(g.objects(prop, RDFS.range))
+            if not domains or not ranges:
+                continue
+            prop_name = _extract_name(prop)
+            if len(ranges) == 1:
+                prop_type = _get_property_type(ranges[0])
+            else:
+                prop_type = _get_union_property_type(ranges)
+            for domain in domains:
+                if str(domain) in classes:
+                    classes[str(domain)]["properties"][prop_name] = {
+                        "name": prop_name,
+                        "type": prop_type,
+                        "ranges": ranges
+                    }
+    return classes
+
+
+def create_package(graphs: list[Graph], output_dir: str) -> None:
+    """Generate a Python module folder structure from RDFS graphs."""
+    classes = _extract_classes_and_properties(graphs)
+    sorted_class_uris = _topological_sort_classes(classes)
+    prefix_to_classes = {}
+    for class_uri in sorted_class_uris:
+        info = classes[class_uri]
+        g = info["graph"]
+        n3 = info["uri"].n3(namespace_manager=g.namespace_manager)
+        if ":" in n3:
+            prefix, local = n3.split(":", 1)
+        else:
+            prefix, local = "default", n3
+        prefix_to_classes.setdefault(prefix, []).append((local, class_uri))
+    for prefix, class_list in prefix_to_classes.items():
+        folder = os.path.join(output_dir, prefix)
+        os.makedirs(folder, exist_ok=True)
+        # Write __init__.py
+        init_lines = []
+        for local, class_uri in sorted(class_list):
+            init_lines.append(f"from .{local} import {classes[class_uri]['name']}")
+        with open(os.path.join(folder, "__init__.py"), "w", encoding="utf-8") as f:
+            f.write("\n".join(init_lines) + "\n")
+        # Write each class file
+        for local, class_uri in class_list:
+            info = classes[class_uri]
+            class_name = info["name"]
+            parent_uris = info["parent_uris"]
+            properties = info["properties"]
+            label = info.get("label")
+            iri = info.get("iri")
+            comment = info.get("comment")
+            # Determine parent imports
+            parent_imports = []
+            parent_names = []
+            for parent_uri in parent_uris:
+                if str(parent_uri) in classes:
+                    parent_info = classes[str(parent_uri)]
+                    parent_n3 = parent_info["uri"].n3(namespace_manager=parent_info["graph"].namespace_manager)
+                    if ":" in parent_n3:
+                        parent_prefix, parent_local = parent_n3.split(":", 1)
+                    else:
+                        parent_prefix, parent_local = "default", parent_n3
+                    if parent_prefix == prefix:
+                        parent_imports.append(f"from .{parent_local} import {parent_info['name']}")
+                    else:
+                        parent_imports.append(f"from ..{parent_prefix}.{parent_local} import {parent_info['name']}")
+                    parent_names.append(parent_info["name"])
+            # Determine property type imports (for sibling dependencies)
+            prop_imports = []
+            for prop in properties.values():
+                t = prop["type"]
+                if t.startswith("list["):
+                    inner = t[5:t.find("]")]
+                    for type_name in [x.strip().strip('"') for x in inner.split("|")]:
+                        for other_uri, other_info in classes.items():
+                            if other_info["name"] == type_name and other_uri != class_uri:
+                                other_n3 = other_info["uri"].n3(namespace_manager=other_info["graph"].namespace_manager)
+                                if ":" in other_n3:
+                                    other_prefix, other_local = other_n3.split(":", 1)
+                                else:
+                                    other_prefix, other_local = "default", other_n3
+                                if other_prefix == prefix:
+                                    imp = f"from .{other_local} import {type_name}"
+                                else:
+                                    imp = f"from ..{other_prefix}.{other_local} import {type_name}"
+                                if imp not in prop_imports and type_name != class_name:
+                                    prop_imports.append(imp)
+            # Only import parent classes (not property types)
+            lines = ["from __future__ import annotations", "from pydantic import BaseModel"]
+            for imp in sorted(set(parent_imports)):
+                lines.append(imp)
+            lines.append("")
+            if parent_names:
+                parents_str = ", ".join(parent_names)
+                lines.append(f"class {class_name}({parents_str}):")
+            else:
+                lines.append(f"class {class_name}(BaseModel):")
+            if label or iri or comment:
+                docstring_first = '    """'
+                if label:
+                    docstring_first += f'{label} '
+                if iri:
+                    docstring_first += f'<{iri}>.'
+                if comment:
+                    docstring_lines = [docstring_first, '']
+                    for line in str(comment).splitlines():
+                        comment_line = line.rstrip()
+                        if comment_line and not comment_line.endswith('.'):
+                            comment_line += '.'
+                        docstring_lines.append(f'    {comment_line}')
+                    docstring_lines.append('    """')
+                    lines.append('\n'.join(docstring_lines))
+                else:
+                    lines.append(f'{docstring_first}"""')
+            if properties:
+                for prop_name in sorted(properties):
+                    prop = properties[prop_name]
+                    lines.append(f"    {prop['name']}: {prop['type']}")
+            else:
+                lines.append("    ...")
+            lines.append("")
+            with open(os.path.join(folder, f"{local}.py"), "w", encoding="utf-8") as f:
+                f.write("\n".join(lines).rstrip() + "\n")
 
 
 def create_model(graphs: list[Graph]) -> str:
@@ -12,74 +159,21 @@ def create_model(graphs: list[Graph]) -> str:
     Returns:
         Python code defining Pydantic models
     """
-    # Find all classes across all graphs
-    classes = {}
-    for g in graphs:
-        for subject in g.subjects(RDF.type, RDFS.Class):
-            if str(subject) not in classes:
-                class_name = _extract_name(subject)
-                comment = g.value(subject, RDFS.comment)
-                label = g.value(subject, RDFS.label)
-                # Collect all parent classes (for multiple inheritance)
-                parents = list(g.objects(subject, RDFS.subClassOf))
-                classes[str(subject)] = {
-                    "name": class_name,
-                    "comment": str(comment) if comment else None,
-                    "label": str(label) if label else None,
-                    "iri": str(subject),
-                    "parent_uris": parents,
-                    "properties": {}
-                }
-
-    # Find all properties and their domains/ranges across all graphs
-    for g in graphs:
-        prop_subjects = set(g.subjects(RDF.type, RDF.Property))
-        for prop in prop_subjects:
-            # Support multiple domains
-            domains = list(g.objects(prop, RDFS.domain))
-            # Collect all ranges for this property (supports unions)
-            ranges = list(g.objects(prop, RDFS.range))
-
-            if not domains or not ranges:
-                continue
-
-            prop_name = _extract_name(prop)
-            # Handle single vs multiple ranges
-            if len(ranges) == 1:
-                prop_type = _get_property_type(ranges[0])
-            else:
-                # Multiple ranges: create union type
-                prop_type = _get_union_property_type(ranges)
-
-            for domain in domains:
-                if str(domain) in classes:
-                    classes[str(domain)]["properties"][prop_name] = {
-                        "name": prop_name,
-                        "type": prop_type,
-                        "ranges": ranges
-                    }
-
-    # Always include future annotations for consistency
+    classes = _extract_classes_and_properties(graphs)
     lines = ["from __future__ import annotations", "from pydantic import BaseModel", "", ""]
-    
-    # Sort classes topologically: base classes first, then dependent classes
     sorted_class_uris = _topological_sort_classes(classes)
-
     for class_uri in sorted_class_uris:
         class_info = classes[class_uri]
         class_name = class_info["name"]
         comment = class_info["comment"]
         properties = class_info["properties"]
         parent_uris = class_info["parent_uris"]
-
         # Class definition
         if parent_uris:
-            # Multiple inheritance support
             parent_names = []
             for parent_uri in parent_uris:
                 if str(parent_uri) in classes:
                     parent_names.append(classes[str(parent_uri)]["name"])
-
             if parent_names:
                 parents_str = ", ".join(parent_names)
                 lines.append(f"class {class_name}({parents_str}):")
@@ -87,20 +181,18 @@ def create_model(graphs: list[Graph]) -> str:
                 lines.append(f"class {class_name}(BaseModel):")
         else:
             lines.append(f"class {class_name}(BaseModel):")
-
         # Always emit docstring using template if any field is present
         label = class_info.get("label")
         iri = class_info.get("iri")
         comment = class_info.get("comment")
         if label or iri or comment:
-            # Compose the docstring: single-line if no comment, multi-line if comment
             docstring_first = '    """'
             if label:
                 docstring_first += f'{label} '
             if iri:
                 docstring_first += f'<{iri}>.'
             if comment:
-                docstring_lines = [docstring_first, '']  # truly empty blank line
+                docstring_lines = [docstring_first, '']
                 for line in str(comment).splitlines():
                     comment_line = line.rstrip()
                     if comment_line and not comment_line.endswith('.'):
@@ -109,9 +201,7 @@ def create_model(graphs: list[Graph]) -> str:
                 docstring_lines.append('    """')
                 lines.append('\n'.join(docstring_lines))
             else:
-                # Single-line docstring
                 lines.append(f'{docstring_first}"""')
-
         # Properties or ellipsis
         if properties:
             for prop_name in sorted(properties):
@@ -119,10 +209,8 @@ def create_model(graphs: list[Graph]) -> str:
                 lines.append(f"    {prop['name']}: {prop['type']}")
         else:
             lines.append("    ...")
-
         lines.append("")
         lines.append("")
-
     return "\n".join(lines).rstrip() + "\n"
 
 

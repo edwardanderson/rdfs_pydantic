@@ -9,7 +9,7 @@ import re
 def collect_test_cases():
     """Yield (fixture_file, suffix) for each input/output pair in all fixture files."""
     cases = []
-    for fixture_path in Path("test/fixture").glob("*.md"):
+    for fixture_path in Path("test/fixture/transformation/").glob("*.md"):
         fixtures = testmark.parse(str(fixture_path))
         input_keys = set()
         output_keys = set()
