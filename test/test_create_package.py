@@ -16,7 +16,7 @@ _cases = testmark.parse(str(_fixture_path))
 @pytest.mark.parametrize("case_name, case_content", _cases.items())
 def test_create_package_from_rdfs(case_name, case_content, tmp_path):
     """Test that RDFS code is transformed into a package folder structure with correct files."""
-    # Only run for the main input/output case (input-0, output-0, output-*)
+    # Only run for the main input/output case (arrange-ontology-0, output-0, output-*)
     if not str(case_name).startswith("input-0"):
         return
     arrange = case_content

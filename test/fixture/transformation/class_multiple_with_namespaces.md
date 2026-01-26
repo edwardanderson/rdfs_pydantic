@@ -1,6 +1,6 @@
 Ensure that classes with the same names in different namespaces are created separately.
 
-[testmark]:# (input-0)
+[testmark]:# (arrange-ontology-0)
 ```turtle
 @prefix ex1: <http://example1.org/> .
 @prefix ex2: <http://example2.org/> .
@@ -11,7 +11,7 @@ Ensure that classes with the same names in different namespaces are created sepa
 <http://example2.org/E1> a rdfs:Class .
 ```
 
-[testmark]:# (output-0)
+[testmark]:# (expected-0)
 ```python
 from __future__ import annotations
 from pydantic import BaseModel
