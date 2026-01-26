@@ -6,29 +6,34 @@ import shutil
 from rdflib import Graph
 from rdfs_pydantic import create_package
 
+
 def read_file(path):
     with open(path, 'r', encoding='utf-8') as f:
         return f.read()
 
-@pytest.mark.parametrize(
-    "fixture_path",
-    [Path("test/fixture/package_output/example_package.md")],
-    ids=["example_module"]
-)
-def test_create_module_from_rdfs(fixture_path, tmp_path):
-    """Test that RDFS code is transformed into a module folder structure with correct files."""
-    fixtures = testmark.parse(str(fixture_path))
-    arrange = fixtures.get("input-0", "")
-    expected_tree = fixtures.get("output-0", "")
+# Parse the testmark fixture once
+_fixture_path = Path("test/fixture/package_output/example_package.md")
+_cases = testmark.parse(str(_fixture_path))
+
+@pytest.mark.parametrize("case_name, case_content", _cases.items())
+def test_create_package_from_rdfs(case_name, case_content, tmp_path):
+    """Test that RDFS code is transformed into a package folder structure with correct files."""
+    # Only run for the main input/output case (input-0, output-0, output-*)
+    if not str(case_name).startswith("input-0"):
+        return
+    arrange = case_content
+    # Find all outputs for this input
+    outputs = {k: v for k, v in _cases.items() if str(k).startswith("output-")}
+    expected_tree = outputs.get("output-0", "")
     expected_files = {
-        k.replace("output-", ""): v for k, v in fixtures.items() if k.startswith("output-") and k not in ("output-0",)
+        str(k).replace("output-", ""): v for k, v in outputs.items() if k != "output-0"
     }
     if not arrange or not expected_tree:
-        pytest.skip(f"Missing arrange or output-0 section in {fixture_path}")
+        pytest.skip(f"Missing arrange or output-0 section in {case_name}")
 
     g = Graph()
     g.parse(data=arrange, format="turtle")
-    # This function should create the module structure in tmp_path
+    # This function should create the package structure in tmp_path
     create_package([g], output_dir=str(tmp_path))
 
     # Check folder structure (tree)
