@@ -4,7 +4,7 @@
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 
 ex:Agent a rdfs:Class ;
-    rdfs:comment "A person or organization" .
+    rdfs:comment "A person or organisation" .
 
 ex:Artist a rdfs:Class ;
     rdfs:subClassOf ex:Agent ;
@@ -43,7 +43,7 @@ from pydantic import BaseModel
 
 
 class Agent(BaseModel):
-    """A person or organization"""
+    """A person or organisation"""
     name: str | None = None
 
 

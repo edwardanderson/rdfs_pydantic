@@ -10,7 +10,7 @@ from rdfs_pydantic import create_model
     ids=[f.name for f in Path("test/fixture").glob("*.md")]
 )
 def fixture_file(request):
-    """Parameterized fixture that yields each .md file in the fixture directory."""
+    """Parameterised fixture that yields each .md file in the fixture directory."""
     return request.param
 
 
