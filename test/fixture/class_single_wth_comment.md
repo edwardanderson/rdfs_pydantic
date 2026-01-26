@@ -1,4 +1,4 @@
-[testmark]:# (input)
+[testmark]:# (input-0)
 ```turtle
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 
@@ -6,7 +6,7 @@
     rdfs:comment "E1 comment" .
 ```
 
-[testmark]:# (output)
+[testmark]:# (output-0)
 ```python
 from __future__ import annotations
 from pydantic import BaseModel
