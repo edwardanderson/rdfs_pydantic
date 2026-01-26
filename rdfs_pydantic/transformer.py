@@ -33,8 +33,7 @@ def create_model(graphs: list[Graph]) -> str:
 
     # Find all properties and their domains/ranges across all graphs
     for g in graphs:
-        rdf_property_uri = RDF.Property
-        prop_subjects = set(g.subjects(RDF.type, rdf_property_uri))
+        prop_subjects = set(g.subjects(RDF.type, RDF.Property))
         for prop in prop_subjects:
             # Support multiple domains
             domains = list(g.objects(prop, RDFS.domain))
