@@ -125,16 +125,33 @@ def _extract_properties(graph: Graph, classes: dict, alias_map: dict) -> None:
         if not domains or not ranges:
             continue
         prop_name = _extract_local_name(prop, alias_map)
-        if len(ranges) == 1:
-            prop_type = get_property_type(ranges[0], alias_map)
+        
+        # Filter ranges to only include classes that exist in our extracted classes
+        # or primitive datatypes. This prevents references to classes that aren't in the ontology version being used
+        valid_ranges = []
+        for range_val in ranges:
+            range_str = str(range_val)
+            # Check if it's a literal/datatype
+            is_literal = "Literal" in range_str or "XMLSchema" in range_str or range_str.startswith("http://www.w3.org/")
+            # Check if it's in our extracted classes
+            is_known_class = range_str in classes
+            
+            if is_literal or is_known_class:
+                valid_ranges.append(range_val)
+        
+        if not valid_ranges:
+            continue
+            
+        if len(valid_ranges) == 1:
+            prop_type = get_property_type(valid_ranges[0], alias_map)
         else:
-            prop_type = get_union_property_type(ranges, alias_map)
+            prop_type = get_union_property_type(valid_ranges, alias_map)
         for domain in domains:
             if str(domain) in classes:
                 classes[str(domain)]["properties"][prop_name] = {
                     "name": prop_name,
                     "type": prop_type,
-                    "ranges": ranges
+                    "ranges": valid_ranges
                 }
 
 

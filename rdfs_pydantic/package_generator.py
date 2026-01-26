@@ -26,13 +26,12 @@ def create_package(graph: Graph, output_dir: str, context: dict | None = None, b
     # Group classes by prefix
     prefix_to_classes = _group_by_prefix(sorted_class_uris, classes)
     
-    # Create top-level __init__.py
-    with open(os.path.join(output_dir, "__init__.py"), "w", encoding="utf-8") as f:
-        f.write("")
-    
     # Create files for each prefix
     for prefix, class_list in prefix_to_classes.items():
         _create_prefix_package(prefix, class_list, classes, output_dir, base_cls)
+    
+    # Create top-level __init__.py with imports from all prefixes
+    _create_toplevel_init(prefix_to_classes, classes, output_dir)
 
 
 def _group_by_prefix(sorted_class_uris: list[str], classes: dict) -> dict[str, list[tuple[str, str]]]:
@@ -46,26 +45,60 @@ def _group_by_prefix(sorted_class_uris: list[str], classes: dict) -> dict[str, l
     return prefix_to_classes
 
 
+def _create_toplevel_init(prefix_to_classes: dict[str, list[tuple[str, str]]], classes: dict, output_dir: str) -> None:
+    """Create top-level __init__.py with imports from all prefixes."""
+    init_lines = []
+    all_imports = []
+    rebuild_calls = []
+    
+    # Collect all imports from each prefix package
+    for prefix, class_list in sorted(prefix_to_classes.items()):
+        for local, class_uri in sorted(class_list):
+            class_name = classes[class_uri]['name']
+            all_imports.append(class_name)
+            init_lines.append(f"from .{prefix}.{local} import {class_name}")
+            # Only rebuild if class has properties that reference other classes
+            if classes[class_uri]['properties']:
+                rebuild_calls.append(class_name)
+    
+    # Add __all__ to control what's exported
+    if all_imports:
+        init_lines.append("")
+        init_lines.append(f"__all__ = {repr(sorted(all_imports))}")
+    
+    # Add a function to rebuild all models - users can call this after importing
+    if rebuild_calls:
+        init_lines.append("")
+        init_lines.append("def rebuild_all_models() -> None:")
+        init_lines.append('    """Rebuild all models to resolve forward references."""')
+        init_lines.append('    import sys')
+        init_lines.append('    # Get this module''s globals')
+        init_lines.append('    this_module_globals = globals()')
+        init_lines.append('    # Update module globals for all modules containing our classes')
+        init_lines.append('    for mod_name in list(sys.modules.keys()):')
+        init_lines.append('        if mod_name.startswith(\"linked_art.\"):')
+        init_lines.append('            mod = sys.modules[mod_name]')
+        init_lines.append('            mod_dict = vars(mod)')
+        init_lines.append('            # Add all top-level classes to this module''s globals')
+        init_lines.append('            mod_dict.update(this_module_globals)')
+        init_lines.append('    ')
+        for class_name in sorted(set(rebuild_calls)):
+            init_lines.append(f"    {class_name}.model_rebuild()")
+    
+    with open(os.path.join(output_dir, "__init__.py"), "w", encoding="utf-8") as f:
+        f.write("\n".join(init_lines) + "\n" if init_lines else "")
+
+
 def _create_prefix_package(prefix: str, class_list: list[tuple[str, str]], classes: dict, output_dir: str, base_cls: type[BaseModel] | None = None) -> None:
     """Create a package directory for a given prefix with all its classes."""
     folder = os.path.join(output_dir, prefix)
     os.makedirs(folder, exist_ok=True)
     
-    # Write __init__.py with imports and model_rebuild() calls
+    # Write __init__.py with imports (don't call model_rebuild - forward refs are handled by Pydantic)
     init_lines = []
     for local, class_uri in sorted(class_list):
         class_name = classes[class_uri]['name']
         init_lines.append(f"from .{local} import {class_name}")
-    
-    # Add model_rebuild() calls to resolve forward references
-    if init_lines:
-        init_lines.append("")
-        init_lines.append("# Rebuild models to resolve forward references")
-        for local, class_uri in sorted(class_list):
-            class_name = classes[class_uri]['name']
-            # Only rebuild if class has properties that reference other classes
-            if classes[class_uri]['properties']:
-                init_lines.append(f"{class_name}.model_rebuild()")
     
     with open(os.path.join(folder, "__init__.py"), "w", encoding="utf-8") as f:
         f.write("\n".join(init_lines) + "\n" if init_lines else "")

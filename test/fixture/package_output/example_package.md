@@ -132,9 +132,4 @@ from .Artist import Artist
 from .Artwork import Artwork
 from .Exhibition import Exhibition
 from .Painting import Painting
-
-# Rebuild models to resolve forward references
-Artist.model_rebuild()
-Artwork.model_rebuild()
-Exhibition.model_rebuild()
 ```

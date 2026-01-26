@@ -2,6 +2,24 @@
 
 from .utils import sanitise_identifier
 
+# XML Schema and common RDF datatypes that should be treated as primitives
+PRIMITIVE_DATATYPES = {
+    "http://www.w3.org/2001/XMLSchema#string": "str",
+    "http://www.w3.org/2001/XMLSchema#int": "int",
+    "http://www.w3.org/2001/XMLSchema#integer": "int",
+    "http://www.w3.org/2001/XMLSchema#float": "float",
+    "http://www.w3.org/2001/XMLSchema#double": "float",
+    "http://www.w3.org/2001/XMLSchema#boolean": "bool",
+    "http://www.w3.org/2001/XMLSchema#date": "str",
+    "http://www.w3.org/2001/XMLSchema#time": "str",
+    "http://www.w3.org/2001/XMLSchema#dateTime": "str",
+    "http://www.w3.org/2001/XMLSchema#gYear": "str",
+    "http://www.w3.org/2001/XMLSchema#gYearMonth": "str",
+    "http://www.w3.org/2001/XMLSchema#duration": "str",
+    "http://www.w3.org/1999/02/22-rdf-syntax-ns#langString": "str",
+    "http://www.w3.org/2000/01/rdf-schema#Literal": "str",
+}
+
 def get_property_type(range_uri, alias_map: dict | None = None) -> str:
     """Get the Python type annotation for an RDFS range.
     
@@ -17,13 +35,17 @@ def get_property_type(range_uri, alias_map: dict | None = None) -> str:
 
     range_str = str(range_uri)
 
+    # Check if it's a known primitive datatype
+    if range_str in PRIMITIVE_DATATYPES:
+        return f"{PRIMITIVE_DATATYPES[range_str]} | None = None"
+
     # Check if it's a Literal
     if "Literal" in range_str:
         return "str | None = None"
 
-    # Otherwise it's a class reference - use quoted string for forward reference
+    # Otherwise it's a class reference
     class_name = _extract_local_name(range_uri, alias_map)
-    return f"list['{class_name}'] = []"
+    return f"list[{class_name}] = []"
 
 
 def get_union_property_type(range_uris: list, alias_map: dict | None = None) -> str:
@@ -45,18 +67,31 @@ def get_union_property_type(range_uris: list, alias_map: dict | None = None) -> 
 
     for range_uri in range_uris:
         range_str = str(range_uri)
+        
+        # Check if it's a known primitive datatype
+        if range_str in PRIMITIVE_DATATYPES:
+            prim_type = PRIMITIVE_DATATYPES[range_str]
+            if prim_type not in type_names:
+                type_names.append(prim_type)
+            continue
+        
         if "Literal" in range_str:
             has_literal = True
         else:
             class_name = _extract_local_name(range_uri, alias_map)
-            type_names.append(class_name)
+            if class_name not in type_names:
+                type_names.append(class_name)
 
     # Add string type if there's a literal
-    if has_literal:
+    if has_literal and "str" not in type_names:
         type_names.append("str")
 
     # Create union of all types
-    union_types = " | ".join(type_names)
+    if len(type_names) == 1:
+        union_types = type_names[0]
+    else:
+        union_types = " | ".join(type_names)
+    
     return f"list[{union_types}] = []"
 
 
