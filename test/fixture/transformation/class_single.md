@@ -1,11 +1,11 @@
-[testmark]:# (input-0)
+[testmark]:# (arrange-ontology-0)
 ```turtle
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 
 <http://example.org/E1> a rdfs:Class .
 ```
 
-[testmark]:# (output-0)
+[testmark]:# (expected-0)
 ```python
 from __future__ import annotations
 from pydantic import BaseModel

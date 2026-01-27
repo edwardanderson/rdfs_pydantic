@@ -1,4 +1,4 @@
-[testmark]:# (input-0)
+[testmark]:# (arrange-ontology-0)
 ```turtle
 @prefix ex: <http://example.org/> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
@@ -37,7 +37,7 @@ ex:artworks a rdf:Property ;
     rdfs:range ex:Painting , ex:Artwork .
 ```
 
-[testmark]:# (output-0)
+[testmark]:# (expected-0)
 ```tree
 ex/
   __init__.py
@@ -48,7 +48,7 @@ ex/
   Exhibition.py
 ```
 
-[testmark]:# (output-Agent)
+[testmark]:# (expected-Agent)
 ```python
 from __future__ import annotations
 from pydantic import BaseModel
@@ -61,11 +61,15 @@ class Agent(BaseModel):
     name: str | None = None
 ```
 
-[testmark]:# (output-Artist)
+[testmark]:# (expected-Artist)
 ```python
 from __future__ import annotations
+from typing import TYPE_CHECKING
 from pydantic import BaseModel
 from .Agent import Agent
+
+if TYPE_CHECKING:
+    from .Painting import Painting
 
 class Artist(Agent):
     """<http://example.org/Artist>.
@@ -75,10 +79,14 @@ class Artist(Agent):
     created: list[Painting] = []
 ```
 
-[testmark]:# (output-Artwork)
+[testmark]:# (expected-Artwork)
 ```python
 from __future__ import annotations
+from typing import TYPE_CHECKING
 from pydantic import BaseModel
+
+if TYPE_CHECKING:
+    from .Artist import Artist
 
 class Artwork(BaseModel):
     """<http://example.org/Artwork>.
@@ -88,7 +96,7 @@ class Artwork(BaseModel):
     artist: list[Artist] = []
 ```
 
-[testmark]:# (output-Painting)
+[testmark]:# (expected-Painting)
 ```python
 from __future__ import annotations
 from pydantic import BaseModel
@@ -99,10 +107,15 @@ class Painting(Artwork):
     ...
 ```
 
-[testmark]:# (output-Exhibition)
+[testmark]:# (expected-Exhibition)
 ```python
 from __future__ import annotations
+from typing import TYPE_CHECKING
 from pydantic import BaseModel
+
+if TYPE_CHECKING:
+    from .Artwork import Artwork
+    from .Painting import Painting
 
 class Exhibition(BaseModel):
     """<http://example.org/Exhibition>.
@@ -112,10 +125,11 @@ class Exhibition(BaseModel):
     artworks: list[Painting | Artwork] = []
 ```
 
-[testmark]:# (output-__init__)
+[testmark]:# (expected-__init__)
 ```python
 from .Agent import Agent
+from .Artist import Artist
 from .Artwork import Artwork
-from .Painting import Painting
 from .Exhibition import Exhibition
+from .Painting import Painting
 ```

@@ -2,14 +2,14 @@
 
 ## IRI
 
-[testmark]:# (input-0)
+[testmark]:# (arrange-ontology-0)
 ```turtle
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 
 <http://example.org/E1> a rdfs:Class .
 ```
 
-[testmark]:# (output-0)
+[testmark]:# (expected-0)
 ```python
 from __future__ import annotations
 from pydantic import BaseModel
@@ -22,7 +22,7 @@ class E1(BaseModel):
 
 ## IRI + `rdfs:label`
 
-[testmark]:# (input-1)
+[testmark]:# (arrange-ontology-1)
 ```turtle
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 
@@ -30,7 +30,7 @@ class E1(BaseModel):
     rdfs:label "Example" .
 ```
 
-[testmark]:# (output-1)
+[testmark]:# (expected-1)
 ```python
 from __future__ import annotations
 from pydantic import BaseModel
@@ -43,7 +43,7 @@ class E1(BaseModel):
 
 ## IRI + `rdfs:comment`
 
-[testmark]:# (input-2)
+[testmark]:# (arrange-ontology-2)
 ```turtle
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 
@@ -51,7 +51,7 @@ class E1(BaseModel):
     rdfs:comment "This class is used for demonstrative purposes." .
 ```
 
-[testmark]:# (output-2)
+[testmark]:# (expected-2)
 ```python
 from __future__ import annotations
 from pydantic import BaseModel
@@ -67,7 +67,7 @@ class E1(BaseModel):
 
 ## IRI + `rdfs:label` + `rdfs:comment`
 
-[testmark]:# (input-3)
+[testmark]:# (arrange-ontology-3)
 ```turtle
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 
@@ -75,7 +75,7 @@ class E1(BaseModel):
     rdfs:comment "This class is used for demonstrative purposes." .
 ```
 
-[testmark]:# (output-3)
+[testmark]:# (expected-3)
 ```python
 from __future__ import annotations
 from pydantic import BaseModel

@@ -13,3 +13,5 @@ wheels/
 uv.lock
 .vscode/
 TODO.md
+linked_art/
+example_*

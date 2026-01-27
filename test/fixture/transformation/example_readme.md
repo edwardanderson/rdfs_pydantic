@@ -1,4 +1,4 @@
-[testmark]:# (input-0)
+[testmark]:# (arrange-ontology-0)
 ```turtle
 @prefix ex: <http://example.org/> .
 @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
@@ -37,7 +37,7 @@ ex:artworks a rdf:Property ;
     rdfs:range ex:Painting , ex:Artwork .
 ```
 
-[testmark]:# (output-0)
+[testmark]:# (expected-0)
 ```python
 from __future__ import annotations
 from pydantic import BaseModel
