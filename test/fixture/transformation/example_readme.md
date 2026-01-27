@@ -67,15 +67,15 @@ class Artwork(BaseModel):
     artist: list[Artist] = []
 
 
-class Painting(Artwork):
-    """<http://example.org/Painting>."""
-    ...
-
-
 class Exhibition(BaseModel):
     """<http://example.org/Exhibition>.
 
     A curated collection of artworks.
     """
     artworks: list[Painting | Artwork] = []
+
+
+class Painting(Artwork):
+    """<http://example.org/Painting>."""
+    ...
 ```

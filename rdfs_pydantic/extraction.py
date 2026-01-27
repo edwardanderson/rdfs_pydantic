@@ -13,6 +13,26 @@ from .models import ClassInfo, PropertyInfo, IriComponents
 from .naming import NamingStrategy, DefaultNamingStrategy, ContextAwareNamingStrategy
 
 
+def get_unbound_rdfs_classes(graph: Graph) -> list[tuple[str, str]]:
+    """Get all rdfs:Class instances that lack bound prefixes.
+    
+    Args:
+        graph: RDF graph to check
+        
+    Returns:
+        List of tuples (iri, type_str) for unbound classes
+    """
+    unbound = []
+    
+    # Check all rdfs:Class instances
+    for subject in graph.subjects(RDF.type, RDFS.Class):
+        namespace = _get_namespace(str(subject))
+        if not _is_prefix_bound(graph, namespace):
+            unbound.append((str(subject), "rdfs:Class"))
+    
+    return unbound
+
+
 def _validate_prefix_bindings(graph: Graph) -> None:
     """Validate that all rdfs:Class and rdf:Property instances have bound prefixes.
     

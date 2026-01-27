@@ -59,56 +59,32 @@ def extract_local_name(uri) -> str:
 def topological_sort_classes(classes: dict) -> list:
     """Sort classes topologically so that referenced classes appear before referencing classes.
     
-    This ensures that if class A has a property referencing class B, then B appears before A
+    This ensures that if class A inherits from class B, then B appears before A
     in the output, avoiding forward reference issues.
+    
+    Note: Only parent class dependencies are considered for ordering.
+    Property type dependencies are NOT included as they can create self-loops
+    in the dependency graph (e.g., a class with recursive properties).
     
     Args:
         classes: Dict of class_uri -> class_info (supports dict or dataclass values)
         
     Returns:
-        List of class URIs sorted topologically
+        List of class URIs sorted topologically by inheritance relationships
     """
-    # Build a dependency graph
+    # Build a dependency graph using only parent class relationships
     dependencies: dict[str, set[str]] = {}
 
     for class_uri, class_info in classes.items():
         deps: set[str] = set()
 
-        # Add parent class dependencies
+        # Add parent class dependencies only (not property types)
         parent_uris = getattr(class_info, "parent_uris", None)
         if parent_uris is None and isinstance(class_info, dict):
             parent_uris = class_info.get("parent_uris", [])
         for parent_uri in parent_uris or []:
             if str(parent_uri) in classes:
                 deps.add(str(parent_uri))
-
-        # Add property type dependencies
-        prop_map = getattr(class_info, "properties", None)
-        if prop_map is None and isinstance(class_info, dict):
-            prop_map = class_info.get("properties", {})
-        for prop_info in (prop_map or {}).values():
-            # Extract class names from property types (e.g., "list[ClassName]")
-            prop_type = getattr(prop_info, "type_annotation", None)
-            if prop_type is None and isinstance(prop_info, dict):
-                prop_type = prop_info.get("type", "")
-            prop_type = prop_type or ""
-            # Check if this property references another class
-            if "list[" in prop_type:
-                # Extract the type inside list[...]
-                start = prop_type.find("[") + 1
-                end = prop_type.find("]")
-                if start > 0 and end > start:
-                    type_ref = prop_type[start:end]
-                    # Handle union types: "Email | PhoneNumber"
-                    for type_name in type_ref.split("|"):
-                        type_name = type_name.strip()
-                        # Find the class URI that has this name
-                        for other_uri, other_info in classes.items():
-                            other_name = getattr(other_info, "name", None)
-                            if other_name is None and isinstance(other_info, dict):
-                                other_name = other_info.get("name")
-                            if other_name == type_name:
-                                deps.add(other_uri)
 
         dependencies[class_uri] = deps
     
