@@ -46,8 +46,10 @@ def create_module(graph: Graph, context: dict | None = None, base_cls: type[Base
             continue
             
         class_info = classes[class_uri]
-        g = class_info.graph
-        prefix, local = extract_prefix_and_local(class_info.uri, g)
+        # Skip if uri or graph is None (shouldn't happen in practice)
+        if class_info.uri is None or class_info.graph is None:
+            continue
+        prefix, local = extract_prefix_and_local(class_info.uri, class_info.graph)
         
         # Check if this class is part of a namespace group
         if prefix in prefix_groups and class_uri in prefix_groups[prefix]:
@@ -72,8 +74,10 @@ def _group_by_local_name(sorted_class_uris: list[str], classes: dict) -> dict:
     local_name_to_uris: dict = {}
     for class_uri in sorted_class_uris:
         class_info = classes[class_uri]
-        g = class_info.graph
-        prefix, local = extract_prefix_and_local(class_info.uri, g)
+        # Skip if uri or graph is None (shouldn't happen in practice)
+        if class_info.uri is None or class_info.graph is None:
+            continue
+        prefix, local = extract_prefix_and_local(class_info.uri, class_info.graph)
         if local not in local_name_to_uris:
             local_name_to_uris[local] = []
         local_name_to_uris[local].append((prefix, class_uri))

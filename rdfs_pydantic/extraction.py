@@ -4,8 +4,10 @@ import json
 import os
 from urllib.parse import urlparse
 from urllib.request import urlopen
+from typing import cast
 from rdflib import Graph
 from rdflib.namespace import RDF, RDFS
+from rdflib.term import URIRef as URIRefType
 from .utils import sanitise_identifier
 from .models import ClassInfo, PropertyInfo, IriComponents
 from .naming import NamingStrategy, DefaultNamingStrategy, ContextAwareNamingStrategy
@@ -100,14 +102,17 @@ def _extract_classes(graph: Graph, classes: dict[str, ClassInfo], naming_strateg
             comment = graph.value(subject, RDFS.comment)
             label = graph.value(subject, RDFS.label)
             parents = list(graph.objects(subject, RDFS.subClassOf))
+            # Cast to proper types for type checker
+            parent_uris_list = [cast(URIRefType, p) for p in parents if isinstance(p, URIRefType)]
+            uri_ref = cast(URIRefType, subject) if isinstance(subject, URIRefType) else None
             classes[str(subject)] = ClassInfo(
                 name=class_name,
                 comment=str(comment) if comment else None,
                 label=str(label) if label else None,
                 iri=str(subject),
-                parent_uris=parents,
+                parent_uris=parent_uris_list,
                 properties={},
-                uri=subject,
+                uri=uri_ref,
                 graph=graph,
             )
 
