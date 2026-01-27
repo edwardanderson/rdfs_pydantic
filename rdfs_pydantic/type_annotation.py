@@ -37,15 +37,15 @@ def get_property_type(range_uri, alias_map: dict | None = None) -> str:
 
     # Check if it's a known primitive datatype
     if range_str in PRIMITIVE_DATATYPES:
-        return f"{PRIMITIVE_DATATYPES[range_str]} | None = None"
+        return PRIMITIVE_DATATYPES[range_str]
 
     # Check if it's a Literal
     if "Literal" in range_str:
-        return "str | None = None"
+        return "str"
 
     # Otherwise it's a class reference
     class_name = _extract_local_name(range_uri, alias_map)
-    return f"list[{class_name}] = []"
+    return f"list[{class_name}]"
 
 
 def get_union_property_type(range_uris: list, alias_map: dict | None = None) -> str:
@@ -92,7 +92,7 @@ def get_union_property_type(range_uris: list, alias_map: dict | None = None) -> 
     else:
         union_types = " | ".join(type_names)
     
-    return f"list[{union_types}] = []"
+    return f"list[{union_types}]"
 
 
 def _extract_local_name(uri, alias_map: dict | None = None) -> str:

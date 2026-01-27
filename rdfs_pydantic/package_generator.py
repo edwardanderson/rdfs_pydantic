@@ -25,6 +25,9 @@ def create_package(graph: Graph, output_dir: str, context: dict | None = None, b
     # Ensure output directory exists
     os.makedirs(output_dir, exist_ok=True)
     
+    # Create py.typed marker for proper IDE support
+    _create_py_typed(output_dir)
+    
     # If custom base class is provided, bake it into the package
     if base_cls is not None:
         _write_base_class(base_cls, output_dir)
@@ -38,6 +41,16 @@ def create_package(graph: Graph, output_dir: str, context: dict | None = None, b
     
     # Create top-level __init__.py with imports from all prefixes
     _create_toplevel_init(prefix_to_classes, classes, output_dir)
+
+
+def _create_py_typed(output_dir: str) -> None:
+    """Create a py.typed marker file for PEP 561 compliance.
+    
+    This marker indicates that the package has inline type annotations
+    and helps IDEs and type checkers provide better support.
+    """
+    with open(os.path.join(output_dir, "py.typed"), "w", encoding="utf-8") as f:
+        f.write("")
 
 
 def _write_base_class(base_cls: type[BaseModel], output_dir: str) -> None:
@@ -217,6 +230,9 @@ def _write_class_file(local: str, class_uri: str, prefix: str, class_list: list[
     
     with open(os.path.join(folder, f"{local}.py"), "w", encoding="utf-8") as f:
         f.write("\n".join(lines).rstrip() + "\n")
+    
+    # Also generate a .pyi stub file for better IDE support
+    _write_class_stub_file(local, class_name, parent_names, parent_uris, properties, classes, folder, prefix)
 
 
 def _get_parent_imports(parent_uris: list, classes: dict, current_prefix: str) -> list[str]:
@@ -326,3 +342,70 @@ def _get_property_imports(properties: dict, classes: dict, current_prefix: str, 
                 imported_classes.add(key)
     
     return imports
+
+
+def _write_class_stub_file(local: str, class_name: str, parent_names: list[str] | None, parent_uris: list, properties: dict, classes: dict, folder: str, current_prefix: str) -> None:
+    """Generate a .pyi stub file for better IDE support with explicit __init__ signature.
+    
+    Includes properties from parent classes for full inheritance support.
+    """
+    lines = ["from __future__ import annotations"]
+    lines.append("from typing import Any")
+    lines.append("")
+    
+    # Collect all properties from this class and all parent classes
+    all_properties = dict(properties)  # Start with direct properties
+    
+    # Recursively collect properties from parent classes
+    def collect_parent_properties(parent_uris_list):
+        for parent_uri in parent_uris_list:
+            parent_uri_str = str(parent_uri)
+            if parent_uri_str in classes:
+                parent_info = classes[parent_uri_str]
+                parent_props = parent_info.get("properties", {})
+                # Add parent properties (don't override direct properties)
+                for prop_name, prop_info in parent_props.items():
+                    if prop_name not in all_properties:
+                        all_properties[prop_name] = prop_info
+                # Recursively collect from grandparents
+                grandparent_uris = parent_info.get("parent_uris", [])
+                if grandparent_uris:
+                    collect_parent_properties(grandparent_uris)
+    
+    if parent_uris:
+        collect_parent_properties(parent_uris)
+    
+    # Add class definition with parents
+    if parent_names:
+        parents_str = ", ".join(parent_names)
+        lines.append(f"class {class_name}({parents_str}):")
+    else:
+        lines.append(f"class {class_name}:")
+    
+    # Add __init__ with explicit parameter hints for IDE autocompletion
+    if all_properties:
+        init_params = ["self"]
+        # Add base class fields first (id and type are common base fields)
+        init_params.append("id: str | None = None")
+        init_params.append("type: str | None = None")
+        init_params.append("_label: str | None = None")
+        for prop_name in sorted(all_properties):
+            prop = all_properties[prop_name]
+            prop_type = prop['type']
+            # Make all parameters optional with default None
+            init_params.append(f"{prop_name}: {prop_type} | None = None")
+        
+        params_str = ", ".join(init_params)
+        lines.append(f"    def __init__({params_str}) -> None: ...")
+        lines.append("")
+        
+        # Add property type hints
+        for prop_name in sorted(all_properties):
+            prop = all_properties[prop_name]
+            prop_type = prop['type']
+            lines.append(f"    {prop_name}: {prop_type}")
+    else:
+        lines.append("    def __init__(self, id: str | None = None, type: str | None = None, _label: str | None = None) -> None: ...")
+    
+    with open(os.path.join(folder, f"{local}.pyi"), "w", encoding="utf-8") as f:
+        f.write("\n".join(lines).rstrip() + "\n")

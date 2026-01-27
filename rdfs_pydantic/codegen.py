@@ -68,13 +68,17 @@ def generate_property_line(prop_name: str, prop_type: str, indent: str = "    ")
     
     Args:
         prop_name: Name of the property
-        prop_type: Type annotation for the property
+        prop_type: Type annotation for the property (e.g., "list[SomeClass]")
         indent: Indentation string
         
     Returns:
         Property definition line
     """
-    return f"{indent}{prop_name}: {prop_type}"
+    # Use empty list for list types
+    if prop_type.startswith("list["):
+        return f"{indent}{prop_name}: {prop_type} = []"
+    # For other types, use None as default
+    return f"{indent}{prop_name}: {prop_type} | None = None"
 
 
 def generate_ellipsis_line(indent: str = "    ") -> str:
