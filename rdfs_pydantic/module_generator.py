@@ -5,7 +5,7 @@ from rdflib import Graph
 from pydantic import BaseModel
 from .extraction import extract_classes_and_properties
 from .utils import extract_prefix_and_local, topological_sort_classes
-from .codegen import generate_docstring, generate_class_definition, generate_property_line, generate_ellipsis_line, generate_model_config
+from .codegen import generate_docstring, generate_class_definition, generate_property_line, generate_ellipsis_line
 
 
 def create_module(graph: Graph, context: dict | None = None, base_cls: type[BaseModel] | None = None) -> str:
@@ -46,8 +46,8 @@ def create_module(graph: Graph, context: dict | None = None, base_cls: type[Base
             continue
             
         class_info = classes[class_uri]
-        g = class_info["graph"]
-        prefix, local = extract_prefix_and_local(class_info["uri"], g)
+        g = class_info.graph
+        prefix, local = extract_prefix_and_local(class_info.uri, g)
         
         # Check if this class is part of a namespace group
         if prefix in prefix_groups and class_uri in prefix_groups[prefix]:
@@ -72,8 +72,8 @@ def _group_by_local_name(sorted_class_uris: list[str], classes: dict) -> dict:
     local_name_to_uris: dict = {}
     for class_uri in sorted_class_uris:
         class_info = classes[class_uri]
-        g = class_info["graph"]
-        prefix, local = extract_prefix_and_local(class_info["uri"], g)
+        g = class_info.graph
+        prefix, local = extract_prefix_and_local(class_info.uri, g)
         if local not in local_name_to_uris:
             local_name_to_uris[local] = []
         local_name_to_uris[local].append((prefix, class_uri))
@@ -102,24 +102,24 @@ def _emit_namespace_group(lines: list, classes_in_prefix: list, classes: dict, p
         parent_names = _get_parent_names(group_class_info, classes, class_name_map)
         
         # Class definition inside wrapper
-        class_def = generate_class_definition(group_class_info["name"], parent_names if parent_names else None, "    ", base_cls)
+        class_def = generate_class_definition(group_class_info.name, parent_names if parent_names else None, "    ", base_cls)
         lines.append(class_def)
         
         # Docstring
         docstring = generate_docstring(
-            group_class_info.get("label"),
-            group_class_info.get("iri"),
-            group_class_info.get("comment"),
+            group_class_info.label,
+            group_class_info.iri,
+            group_class_info.comment,
             "        "
         )
         if docstring:
             lines.append(docstring)
         
         # Properties or ellipsis
-        if group_class_info["properties"]:
-            for prop_name in sorted(group_class_info["properties"]):
-                prop = group_class_info["properties"][prop_name]
-                lines.append(generate_property_line(prop["name"], prop["type"], "        "))
+        if group_class_info.properties:
+            for prop_name in sorted(group_class_info.properties):
+                prop = group_class_info.properties[prop_name]
+                lines.append(generate_property_line(prop.name, prop.type_annotation, "        "))
         else:
             lines.append(generate_ellipsis_line("        "))
         lines.append("")
@@ -133,38 +133,38 @@ def _emit_single_class(lines: list, class_uri: str, classes: dict, indent: str, 
     parent_names = _get_parent_names(class_info, classes, class_name_map)
     
     # Class definition
-    class_def = generate_class_definition(class_info["name"], parent_names if parent_names else None, indent, base_cls)
+    class_def = generate_class_definition(class_info.name, parent_names if parent_names else None, indent, base_cls)
     lines.append(class_def)
     
     # Docstring
     docstring = generate_docstring(
-        class_info.get("label"),
-        class_info.get("iri"),
-        class_info.get("comment"),
+        class_info.label,
+        class_info.iri,
+        class_info.comment,
         indent + "    "
     )
     if docstring:
         lines.append(docstring)
     
     # Properties or ellipsis
-    if class_info["properties"]:
-        for prop_name in sorted(class_info["properties"]):
-            prop = class_info["properties"][prop_name]
-            lines.append(generate_property_line(prop["name"], prop["type"], indent + "    "))
+    if class_info.properties:
+        for prop_name in sorted(class_info.properties):
+            prop = class_info.properties[prop_name]
+            lines.append(generate_property_line(prop.name, prop.type_annotation, indent + "    "))
     else:
         lines.append(generate_ellipsis_line(indent + "    "))
     lines.append("")
     lines.append("")
 
 
-def _get_parent_names(class_info: dict, classes: dict, class_name_map: dict) -> list:
+def _get_parent_names(class_info, classes: dict, class_name_map: dict) -> list:
     """Get names of parent classes, qualified if necessary."""
     parent_names = []
-    for parent_uri in class_info["parent_uris"]:
+    for parent_uri in class_info.parent_uris:
         parent_uri_str = str(parent_uri)
         if parent_uri_str in classes:
             # Use qualified name from the URI-based map
-            qualified_name = class_name_map.get(parent_uri_str, classes[parent_uri_str]["name"])
+            qualified_name = class_name_map.get(parent_uri_str, classes[parent_uri_str].name)
             parent_names.append(qualified_name)
     return parent_names
 
@@ -189,7 +189,7 @@ def _build_qualified_name_map(classes: dict, prefix_groups: dict) -> dict:
     # Build the map using URIs as keys
     name_map = {}
     for class_uri, class_info in classes.items():
-        class_name = class_info["name"]
+        class_name = class_info.name
         if class_uri in uri_to_prefix:
             # This class is in a namespace group
             qualified_name = f"{uri_to_prefix[class_uri]}.{class_name}"
@@ -214,14 +214,14 @@ def _qualify_property_types(classes: dict, class_name_map: dict) -> None:
     # Build a reverse map: class_name -> list of (uri, qualified_name)
     name_to_uris = {}
     for class_uri, qualified_name in class_name_map.items():
-        class_name = classes[class_uri]["name"]
+        class_name = classes[class_uri].name
         if class_name not in name_to_uris:
             name_to_uris[class_name] = []
         name_to_uris[class_name].append((class_uri, qualified_name))
     
     for class_info in classes.values():
-        for prop_info in class_info["properties"].values():
-            prop_type = prop_info["type"]
+        for prop_info in class_info.properties.values():
+            prop_type = prop_info.type_annotation
             
             # Parse and replace class names in the type annotation
             # Handle patterns like "list[ClassName]" or "list[Class1 | Class2]"
@@ -236,9 +236,9 @@ def _qualify_property_types(classes: dict, class_name_map: dict) -> None:
                     for type_name in type_parts:
                         # Find which URI this references by checking the ranges
                         resolved_name = type_name
-                        for range_uri in prop_info.get("ranges", []):
+                        for range_uri in getattr(prop_info, "ranges", []) or []:
                             range_uri_str = str(range_uri)
-                            if range_uri_str in classes and classes[range_uri_str]["name"] == type_name:
+                            if range_uri_str in classes and classes[range_uri_str].name == type_name:
                                 # Found the matching class, use its qualified name
                                 resolved_name = class_name_map.get(range_uri_str, type_name)
                                 break
@@ -246,4 +246,4 @@ def _qualify_property_types(classes: dict, class_name_map: dict) -> None:
                     
                     # Rebuild the type annotation
                     qualified_content = " | ".join(qualified_parts)
-                    prop_info["type"] = f"list[{qualified_content}]"
+                    prop_info.type_annotation = f"list[{qualified_content}]"
