@@ -10,13 +10,13 @@ from .utils import extract_prefix_and_local, topological_sort_classes, sanitise_
 from .codegen import generate_docstring, generate_class_definition, generate_property_line, generate_ellipsis_line
 
 
-def create_package(graph: Graph, output_dir: str, context: dict | None = None, base_cls: type[BaseModel] | None = None) -> None:
+def create_package(graph: Graph, output_dir: str, context: dict | list | str | None = None, base_cls: type[BaseModel] | None = None) -> None:
     """Generate a Python module folder structure from an RDFS graph.
     
     Args:
         graph: RDFLib Graph object containing RDFS ontology
         output_dir: Directory to write the package structure to
-        context: Optional JSON-LD @context document providing aliases
+        context: Optional JSON-LD @context document providing aliases (dict, list, or URL string to download)
         base_cls: Base class type to inherit from (default: None, uses BaseModel)
     """
     classes = extract_classes_and_properties(graph, context)
