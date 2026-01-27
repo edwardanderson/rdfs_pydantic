@@ -183,3 +183,30 @@ class E1(BaseModel):
     """Entité <http://example.org/E1>."""
     P1_has_name: str | None = None
 ```
+
+## Fallback to untagged literal when requested language unavailable
+
+[testmark]:# (arrange-ontology-6)
+```turtle
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+<http://example.org/E4> a rdfs:Class ;
+    rdfs:label "Generic Label" ;
+    rdfs:label "Étiquette française"@fr .
+```
+
+[testmark]:# (arrange-language-6)
+```
+de
+```
+
+[testmark]:# (expected-6)
+```python
+from __future__ import annotations
+from pydantic import BaseModel
+
+
+class E4(BaseModel):
+    """Generic Label <http://example.org/E4>."""
+    ...
+```
