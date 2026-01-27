@@ -246,4 +246,4 @@ def _qualify_property_types(classes: dict, class_name_map: dict) -> None:
                     
                     # Rebuild the type annotation
                     qualified_content = " | ".join(qualified_parts)
-                    prop_info["type"] = f"list[{qualified_content}] = []"
+                    prop_info["type"] = f"list[{qualified_content}]"

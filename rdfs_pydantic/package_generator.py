@@ -1,6 +1,8 @@
 """Generate file-based Pydantic model packages."""
 
 import os
+import inspect
+import textwrap
 from rdflib import Graph
 from pydantic import BaseModel
 from .extraction import extract_classes_and_properties
@@ -8,13 +10,13 @@ from .utils import extract_prefix_and_local, topological_sort_classes, sanitise_
 from .codegen import generate_docstring, generate_class_definition, generate_property_line, generate_ellipsis_line
 
 
-def create_package(graph: Graph, output_dir: str, context: dict | None = None, base_cls: type[BaseModel] | None = None) -> None:
+def create_package(graph: Graph, output_dir: str, context: dict | list | str | None = None, base_cls: type[BaseModel] | None = None) -> None:
     """Generate a Python module folder structure from an RDFS graph.
     
     Args:
         graph: RDFLib Graph object containing RDFS ontology
         output_dir: Directory to write the package structure to
-        context: Optional JSON-LD @context document providing aliases
+        context: Optional JSON-LD @context document providing aliases (dict, list, or URL string to download)
         base_cls: Base class type to inherit from (default: None, uses BaseModel)
     """
     classes = extract_classes_and_properties(graph, context)
@@ -22,6 +24,13 @@ def create_package(graph: Graph, output_dir: str, context: dict | None = None, b
     
     # Ensure output directory exists
     os.makedirs(output_dir, exist_ok=True)
+    
+    # Create py.typed marker for proper IDE support
+    _create_py_typed(output_dir)
+    
+    # If custom base class is provided, bake it into the package
+    if base_cls is not None:
+        _write_base_class(base_cls, output_dir)
     
     # Group classes by prefix
     prefix_to_classes = _group_by_prefix(sorted_class_uris, classes)
@@ -32,6 +41,54 @@ def create_package(graph: Graph, output_dir: str, context: dict | None = None, b
     
     # Create top-level __init__.py with imports from all prefixes
     _create_toplevel_init(prefix_to_classes, classes, output_dir)
+
+
+def _create_py_typed(output_dir: str) -> None:
+    """Create a py.typed marker file for PEP 561 compliance.
+    
+    This marker indicates that the package has inline type annotations
+    and helps IDEs and type checkers provide better support.
+    """
+    with open(os.path.join(output_dir, "py.typed"), "w", encoding="utf-8") as f:
+        f.write("")
+
+
+def _write_base_class(base_cls: type[BaseModel], output_dir: str) -> None:
+    """Write the base class to _base.py with import-first semantics.
+
+    We first try to import the original class to preserve identity (important
+    for tests that check issubclass against the provided class). If that fails
+    (e.g., the module isn't available for a consumer), we fall back to a baked
+    copy of the class source if we can retrieve it, otherwise a minimal alias.
+    """
+    module = inspect.getmodule(base_cls)
+    module_name = module.__name__ if module else base_cls.__module__
+    class_name = base_cls.__name__
+
+    # Try to capture the source for a baked fallback
+    baked_source: str | None = None
+    try:
+        baked_source = textwrap.indent(textwrap.dedent(inspect.getsource(base_cls)).rstrip(), "    ")
+    except (TypeError, OSError):
+        baked_source = None
+
+    lines: list[str] = []
+    lines.append("try:")
+    lines.append(f"    from {module_name} import {class_name} as _ExternalBase")
+    lines.append("except ImportError:")
+    if baked_source:
+        # Use the baked copy if import is unavailable
+        lines.append(baked_source)
+    else:
+        # Minimal fallback to keep package importable
+        lines.append("    from pydantic import BaseModel as _BaseModelFallback")
+        lines.append(f"    class {class_name}(_BaseModelFallback):")
+        lines.append("        ...")
+    lines.append("else:")
+    lines.append(f"    {class_name} = _ExternalBase")
+
+    with open(os.path.join(output_dir, "_base.py"), "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
 
 
 def _group_by_prefix(sorted_class_uris: list[str], classes: dict) -> dict[str, list[tuple[str, str]]]:
@@ -66,24 +123,23 @@ def _create_toplevel_init(prefix_to_classes: dict[str, list[tuple[str, str]]], c
         init_lines.append("")
         init_lines.append(f"__all__ = {repr(sorted(all_imports))}")
     
-    # Add a function to rebuild all models - users can call this after importing
+    # Automatically rebuild models at import time to resolve forward references
     if rebuild_calls:
         init_lines.append("")
-        init_lines.append("def rebuild_all_models() -> None:")
-        init_lines.append('    """Rebuild all models to resolve forward references."""')
-        init_lines.append('    import sys')
-        init_lines.append('    # Get this module''s globals')
-        init_lines.append('    this_module_globals = globals()')
-        init_lines.append('    # Update module globals for all modules containing our classes')
-        init_lines.append('    for mod_name in list(sys.modules.keys()):')
-        init_lines.append('        if mod_name.startswith(\"linked_art.\"):')
-        init_lines.append('            mod = sys.modules[mod_name]')
-        init_lines.append('            mod_dict = vars(mod)')
-        init_lines.append('            # Add all top-level classes to this module''s globals')
-        init_lines.append('            mod_dict.update(this_module_globals)')
-        init_lines.append('    ')
+        init_lines.append("# Rebuild models to resolve forward references")
+        init_lines.append("import sys")
+        init_lines.append("_this_module_globals = globals()")
+        init_lines.append("for _mod_name in list(sys.modules.keys()):")
+        
+        # Get the package name from output_dir (last component of path)
+        pkg_name = os.path.basename(os.path.normpath(output_dir))
+        init_lines.append(f"    if _mod_name.startswith(\"{pkg_name}.\"):")
+        init_lines.append("        _mod = sys.modules[_mod_name]")
+        init_lines.append("        _mod_dict = vars(_mod)")
+        init_lines.append("        _mod_dict.update(_this_module_globals)")
+        
         for class_name in sorted(set(rebuild_calls)):
-            init_lines.append(f"    {class_name}.model_rebuild()")
+            init_lines.append(f"{class_name}.model_rebuild()")
     
     with open(os.path.join(output_dir, "__init__.py"), "w", encoding="utf-8") as f:
         f.write("\n".join(init_lines) + "\n" if init_lines else "")
@@ -134,10 +190,9 @@ def _write_class_file(local: str, class_uri: str, prefix: str, class_list: list[
     
     # Import base model - either BaseModel or custom base class
     if base_cls is not None:
-        # Import the custom base class from its module
+        # Import the custom base class from the package's _base module
         base_class_name = base_cls.__name__
-        base_class_module = base_cls.__module__
-        lines.append(f"from {base_class_module} import {base_class_name}")
+        lines.append(f"from .._base import {base_class_name}")
     else:
         lines.append("from pydantic import BaseModel")
     
@@ -175,6 +230,9 @@ def _write_class_file(local: str, class_uri: str, prefix: str, class_list: list[
     
     with open(os.path.join(folder, f"{local}.py"), "w", encoding="utf-8") as f:
         f.write("\n".join(lines).rstrip() + "\n")
+    
+    # Also generate a .pyi stub file for better IDE support
+    _write_class_stub_file(local, class_name, parent_names, parent_uris, properties, classes, folder, prefix)
 
 
 def _get_parent_imports(parent_uris: list, classes: dict, current_prefix: str) -> list[str]:
@@ -284,3 +342,66 @@ def _get_property_imports(properties: dict, classes: dict, current_prefix: str, 
                 imported_classes.add(key)
     
     return imports
+
+
+def _write_class_stub_file(local: str, class_name: str, parent_names: list[str] | None, parent_uris: list, properties: dict, classes: dict, folder: str, current_prefix: str) -> None:
+    """Generate a .pyi stub file for better IDE support with explicit __init__ signature.
+    
+    Includes properties from parent classes for full inheritance support.
+    """
+    lines = ["from __future__ import annotations"]
+    lines.append("from typing import Any")
+    lines.append("")
+    
+    # Collect all properties from this class and all parent classes
+    all_properties = dict(properties)  # Start with direct properties
+    
+    # Recursively collect properties from parent classes
+    def collect_parent_properties(parent_uris_list):
+        for parent_uri in parent_uris_list:
+            parent_uri_str = str(parent_uri)
+            if parent_uri_str in classes:
+                parent_info = classes[parent_uri_str]
+                parent_props = parent_info.get("properties", {})
+                # Add parent properties (don't override direct properties)
+                for prop_name, prop_info in parent_props.items():
+                    if prop_name not in all_properties:
+                        all_properties[prop_name] = prop_info
+                # Recursively collect from grandparents
+                grandparent_uris = parent_info.get("parent_uris", [])
+                if grandparent_uris:
+                    collect_parent_properties(grandparent_uris)
+    
+    if parent_uris:
+        collect_parent_properties(parent_uris)
+    
+    # Add class definition with parents
+    if parent_names:
+        parents_str = ", ".join(parent_names)
+        lines.append(f"class {class_name}({parents_str}):")
+    else:
+        lines.append(f"class {class_name}:")
+    
+    # Add __init__ with explicit parameter hints for IDE autocompletion
+    if all_properties:
+        init_params = ["self"]
+        for prop_name in sorted(all_properties):
+            prop = all_properties[prop_name]
+            prop_type = prop['type']
+            # Make all parameters optional with default None
+            init_params.append(f"{prop_name}: {prop_type} | None = None")
+        
+        params_str = ", ".join(init_params)
+        lines.append(f"    def __init__({params_str}) -> None: ...")
+        lines.append("")
+        
+        # Add property type hints
+        for prop_name in sorted(all_properties):
+            prop = all_properties[prop_name]
+            prop_type = prop['type']
+            lines.append(f"    {prop_name}: {prop_type}")
+    else:
+        lines.append("    def __init__(self) -> None: ...")
+    
+    with open(os.path.join(folder, f"{local}.pyi"), "w", encoding="utf-8") as f:
+        f.write("\n".join(lines).rstrip() + "\n")
