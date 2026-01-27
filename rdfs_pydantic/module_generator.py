@@ -8,12 +8,13 @@ from .utils import extract_prefix_and_local, topological_sort_classes
 from .codegen import (
     generate_docstring,
     generate_class_definition,
+    generate_class_iri_line,
     generate_property_line,
     generate_ellipsis_line,
 )
 
 
-def create_module(graph: Graph, context: dict | None = None, base_cls: type[BaseModel] | None = None, language: str = 'en') -> str:
+def create_module(graph: Graph, context: dict | None = None, base_cls: type[BaseModel] | None = None, language: str = 'en', emit_iris: bool = False) -> str:
     """Transform RDFS ontology from an RDF graph into Pydantic model code.
     
     Args:
@@ -22,14 +23,34 @@ def create_module(graph: Graph, context: dict | None = None, base_cls: type[Base
         base_cls: Base class type to inherit from (default: None, uses BaseModel)
                  Pass a custom BaseModel subclass for specialized base models
         language: Preferred language for labels and comments (default: 'en')
+        emit_iris: If True, emit class IRIs as ClassVar and property IRIs in Field metadata (default: False)
         
     Returns:
         Python code defining Pydantic models
     """
     classes = extract_classes_and_properties(graph, context, language)
     
-    import_line = "from pydantic import BaseModel"
-    lines = ["from __future__ import annotations", import_line, "", ""]
+    # Check if any class has properties with IRIs or if any class has an IRI
+    has_property_iris = emit_iris and any(
+        any(prop.iri for prop in class_info.properties.values())
+        for class_info in classes.values()
+        if class_info.properties
+    )
+    has_class_iris = emit_iris and any(class_info.iri for class_info in classes.values())
+    
+    # Build imports based on what we need
+    # TODO: determine if we should only do this if no user `base_cls` is provided?
+    import_lines = ["from pydantic import BaseModel"]
+    if has_property_iris:
+        import_lines = ["from typing import ClassVar", "from pydantic import BaseModel, Field"]
+    elif has_class_iris:
+        import_lines = ["from typing import ClassVar", "from pydantic import BaseModel"]
+    
+    # Add base class import if a custom base class is provided
+    if base_cls is not None:
+        import_lines.append(f"from {base_cls.__module__} import {base_cls.__name__}")
+    
+    lines = ["from __future__ import annotations", *import_lines, "", ""]
     sorted_class_uris = topological_sort_classes(classes)
     
     # Group classes by their local name to detect duplicates needing namespace wrapping
@@ -64,13 +85,13 @@ def create_module(graph: Graph, context: dict | None = None, base_cls: type[Base
             
             if classes_in_prefix:
                 lines.append(f"class {prefix}:")
-                _emit_namespace_group(lines, classes_in_prefix, classes, prefix, processed_classes, class_name_map, base_cls)
+                _emit_namespace_group(lines, classes_in_prefix, classes, prefix, processed_classes, class_name_map, base_cls, emit_iris)
                 lines.append("")
         else:
             # Regular class without namespace wrapping
             if class_uri not in processed_classes:
                 processed_classes.add(class_uri)
-                _emit_single_class(lines, class_uri, classes, "", class_name_map, base_cls)
+                _emit_single_class(lines, class_uri, classes, "", class_name_map, base_cls, emit_iris)
     
     return "\n".join(lines).rstrip() + "\n"
 
@@ -103,7 +124,7 @@ def _identify_prefix_groups(local_name_to_uris: dict) -> dict:
 
 
 
-def _emit_namespace_group(lines: list, classes_in_prefix: list, classes: dict, prefix: str, processed_classes: Set, class_name_map: dict, base_cls: type[BaseModel] | None = None) -> None:
+def _emit_namespace_group(lines: list, classes_in_prefix: list, classes: dict, prefix: str, processed_classes: Set, class_name_map: dict, base_cls: type[BaseModel] | None = None, emit_iris: bool = False) -> None:
     """Emit a namespace group with all its nested classes.
     
     The classes_in_prefix list should already be in topological order.
@@ -129,6 +150,10 @@ def _emit_namespace_group(lines: list, classes_in_prefix: list, classes: dict, p
         if docstring:
             lines.append(docstring)
         
+        # Class IRI
+        if emit_iris and group_class_info.iri:
+            lines.append(generate_class_iri_line(group_class_info.iri, "        "))
+        
         # Properties or ellipsis
         if group_class_info.properties:
             for prop_name in sorted(group_class_info.properties):
@@ -138,9 +163,7 @@ def _emit_namespace_group(lines: list, classes_in_prefix: list, classes: dict, p
                         prop.name,
                         prop.type_annotation,
                         "        ",
-                        prop.label,
-                        prop.iri,
-                        prop.comment,
+                        prop.iri if emit_iris else None,
                     )
                 )
         else:
@@ -148,7 +171,7 @@ def _emit_namespace_group(lines: list, classes_in_prefix: list, classes: dict, p
         lines.append("")
 
 
-def _emit_single_class(lines: list, class_uri: str, classes: dict, indent: str, class_name_map: dict, base_cls: type[BaseModel] | None = None) -> None:
+def _emit_single_class(lines: list, class_uri: str, classes: dict, indent: str, class_name_map: dict, base_cls: type[BaseModel] | None = None, emit_iris: bool = False) -> None:
     """Emit a single class definition."""
     class_info = classes[class_uri]
     
@@ -169,6 +192,10 @@ def _emit_single_class(lines: list, class_uri: str, classes: dict, indent: str, 
     if docstring:
         lines.append(docstring)
     
+    # Class IRI
+    if emit_iris and class_info.iri:
+        lines.append(generate_class_iri_line(class_info.iri, indent + "    "))
+    
     # Properties or ellipsis
     if class_info.properties:
         for prop_name in sorted(class_info.properties):
@@ -178,9 +205,7 @@ def _emit_single_class(lines: list, class_uri: str, classes: dict, indent: str, 
                     prop.name,
                     prop.type_annotation,
                     indent + "    ",
-                    prop.label,
-                    prop.iri,
-                    prop.comment,
+                    prop.iri if emit_iris else None,
                 )
             )
     else:

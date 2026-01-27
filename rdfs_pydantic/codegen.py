@@ -39,39 +39,6 @@ def generate_docstring(label: Optional[str], iri: Optional[str], comment: Option
         return f'{docstring_first}"""'
 
 
-def generate_description_text(label: Optional[str], iri: Optional[str], comment: Optional[str]) -> str:
-    """Generate a plain-text description from label/IRI/comment.
-
-    This mirrors the class docstring formatting logic so property Field
-    descriptions match class docstrings.
-    """
-    if not (label or iri or comment):
-        return ""
-
-    summary_parts: list[str] = []
-    if label:
-        summary_parts.append(f"{label} ")
-    if iri:
-        summary_parts.append(f"<{iri}>.")
-
-    summary = "".join(summary_parts)
-    lines: list[str] = [summary] if summary else []
-
-    if comment:
-        comment_lines: list[str] = []
-        for line in str(comment).splitlines():
-            comment_line = line.rstrip()
-            if comment_line and comment_line[-1] not in '.!?。！？':
-                comment_line += '.'
-            comment_lines.append(comment_line)
-        if comment_lines:
-            if lines:
-                lines.append("")
-            lines.extend(comment_lines)
-
-    return "\n".join(lines)
-
-
 def generate_class_definition(
     class_name: str,
     parent_names: Optional[list[str]] = None,
@@ -97,31 +64,40 @@ def generate_class_definition(
         return f"{indent}class {class_name}({base_class_name}):"
 
 
-def generate_property_line(
-    prop_name: str,
-    prop_type: str,
-    indent: str = "    ",
-    label: Optional[str] = None,
-    iri: Optional[str] = None,
-    comment: Optional[str] = None,
-) -> str:
-    """Generate a property definition line.
+def generate_class_iri_line(class_iri: str, indent: str = "    ") -> str:
+    """Generate a class IRI line as ClassVar.
+    
+    Args:
+        class_iri: The IRI of the class
+        indent: Indentation string
+        
+    Returns:
+        Class IRI line
+    """
+    return f'{indent}_class_iri: ClassVar[str] = "{class_iri}"'
 
+
+def generate_property_line(prop_name: str, prop_type: str, indent: str = "    ", prop_iri: Optional[str] = None) -> str:
+    """Generate a property definition line.
+    
     Args:
         prop_name: Name of the property
-        prop_type: Type annotation for the property (e.g., "ClassName | list[ClassName] | None")
+        prop_type: Type annotation for the property (e.g., "str | list[str] | None")
         indent: Indentation string
-        label: Optional label for description (currently unused, Field descriptions disabled)
-        iri: Optional IRI for description (currently unused, Field descriptions disabled)
-        comment: Optional comment for description (currently unused, Field descriptions disabled)
+        prop_iri: Optional IRI for the property
         
     Returns:
         Property definition line
     """
-    # TODO: Re-enable Field(description=...) output in a future feature branch
-    # description = generate_description_text(label, iri, comment)
-    # if description:
-    #     return f"{indent}{prop_name}: {prop_type} = Field(default=None, description={_escape_description(description)})"
+    # Build the base field call if we have a property IRI
+    if prop_iri:
+        json_schema_extra = f'{{"_property_iri": "{prop_iri}"}}'
+        # Type already includes | None, so use it directly
+        return f"{indent}{prop_name}: {prop_type} = Field(default=None, json_schema_extra={json_schema_extra})"
+    
+    # Original behavior without IRI: type already includes | None, so just use it
+    if prop_type.startswith("list["):
+        return f"{indent}{prop_name}: {prop_type} = []"
     return f"{indent}{prop_name}: {prop_type} = None"
 
 
@@ -149,10 +125,3 @@ def generate_model_config(indent: str = "    ", exclude_empty_defaults: bool = T
     """
     lines = [f'{indent}model_config = {{"exclude_none": True}}']
     return lines
-
-
-def _escape_description(description: str) -> str:
-    """Escape a description for safe inline string literal usage."""
-    escaped = description.replace("\\", "\\\\").replace('"', '\\"')
-    escaped = escaped.replace("\n", "\\n")
-    return f'"{escaped}"'

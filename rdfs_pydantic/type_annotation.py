@@ -44,6 +44,8 @@ def get_property_type(range_uri, naming_strategy: NamingStrategy | None = None) 
         return f"{prim_type} | list[{prim_type}] | None"
 
     # Check if it's a Literal
+    # TODO: this seems like weak logic.
+    # Maybe a class will be called 'http://example.org/ExampleLiteral'?
     if "Literal" in range_str:
         return "str | list[str] | None"
 
