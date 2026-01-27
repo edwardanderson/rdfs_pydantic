@@ -1,6 +1,8 @@
 """Generate file-based Pydantic model packages."""
 
 import os
+import inspect
+import textwrap
 from rdflib import Graph
 from pydantic import BaseModel
 from .extraction import extract_classes_and_properties
@@ -23,6 +25,10 @@ def create_package(graph: Graph, output_dir: str, context: dict | None = None, b
     # Ensure output directory exists
     os.makedirs(output_dir, exist_ok=True)
     
+    # If custom base class is provided, bake it into the package
+    if base_cls is not None:
+        _write_base_class(base_cls, output_dir)
+    
     # Group classes by prefix
     prefix_to_classes = _group_by_prefix(sorted_class_uris, classes)
     
@@ -32,6 +38,44 @@ def create_package(graph: Graph, output_dir: str, context: dict | None = None, b
     
     # Create top-level __init__.py with imports from all prefixes
     _create_toplevel_init(prefix_to_classes, classes, output_dir)
+
+
+def _write_base_class(base_cls: type[BaseModel], output_dir: str) -> None:
+    """Write the base class to _base.py with import-first semantics.
+
+    We first try to import the original class to preserve identity (important
+    for tests that check issubclass against the provided class). If that fails
+    (e.g., the module isn't available for a consumer), we fall back to a baked
+    copy of the class source if we can retrieve it, otherwise a minimal alias.
+    """
+    module = inspect.getmodule(base_cls)
+    module_name = module.__name__ if module else base_cls.__module__
+    class_name = base_cls.__name__
+
+    # Try to capture the source for a baked fallback
+    baked_source: str | None = None
+    try:
+        baked_source = textwrap.indent(textwrap.dedent(inspect.getsource(base_cls)).rstrip(), "    ")
+    except (TypeError, OSError):
+        baked_source = None
+
+    lines: list[str] = []
+    lines.append("try:")
+    lines.append(f"    from {module_name} import {class_name} as _ExternalBase")
+    lines.append("except ImportError:")
+    if baked_source:
+        # Use the baked copy if import is unavailable
+        lines.append(baked_source)
+    else:
+        # Minimal fallback to keep package importable
+        lines.append("    from pydantic import BaseModel as _BaseModelFallback")
+        lines.append(f"    class {class_name}(_BaseModelFallback):")
+        lines.append("        ...")
+    lines.append("else:")
+    lines.append(f"    {class_name} = _ExternalBase")
+
+    with open(os.path.join(output_dir, "_base.py"), "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
 
 
 def _group_by_prefix(sorted_class_uris: list[str], classes: dict) -> dict[str, list[tuple[str, str]]]:
@@ -134,10 +178,9 @@ def _write_class_file(local: str, class_uri: str, prefix: str, class_list: list[
     
     # Import base model - either BaseModel or custom base class
     if base_cls is not None:
-        # Import the custom base class from its module
+        # Import the custom base class from the package's _base module
         base_class_name = base_cls.__name__
-        base_class_module = base_cls.__module__
-        lines.append(f"from {base_class_module} import {base_class_name}")
+        lines.append(f"from .._base import {base_class_name}")
     else:
         lines.append("from pydantic import BaseModel")
     
