@@ -7,7 +7,7 @@ from urllib.request import urlopen
 from typing import cast
 from rdflib import Graph
 from rdflib.namespace import RDF, RDFS
-from rdflib.term import URIRef as URIRefType
+from rdflib.term import URIRef as URIRefType, Literal
 from .utils import sanitise_identifier
 from .models import ClassInfo, PropertyInfo, IriComponents
 from .naming import NamingStrategy, DefaultNamingStrategy, ContextAwareNamingStrategy
@@ -91,12 +91,47 @@ def _is_prefix_bound(graph: Graph, namespace: str) -> bool:
     return False
 
 
-def extract_classes_and_properties(graph: Graph, context: dict | list | str | None = None) -> dict[str, ClassInfo]:
+def _get_language_value(graph: Graph, subject, predicate, language: str = 'en'):
+    """Get a value from RDF graph with language preference.
+    
+    Args:
+        graph: RDF graph to query
+        subject: Subject node
+        predicate: Predicate to look for (e.g., RDFS.label, RDFS.comment)
+        language: Preferred language code (default: 'en')
+        
+    Returns:
+        The value in the preferred language if available, otherwise falls back to:
+        1. Untagged literal (no language)
+        2. First value with any language tag
+        3. None if no values exist
+    """
+    # Get all values for this predicate
+    values = list(graph.objects(subject, predicate))
+    if not values:
+        return None
+    
+    # Try to find a value in the preferred language
+    for value in values:
+        if isinstance(value, Literal) and value.language == language:
+            return value
+    
+    # Fallback 1: return first untagged literal (no language)
+    for value in values:
+        if not isinstance(value, Literal) or not value.language:
+            return value
+    
+    # Fallback 2: return first value with any language tag
+    return values[0]
+
+
+def extract_classes_and_properties(graph: Graph, context: dict | list | str | None = None, language: str = 'en') -> dict[str, ClassInfo]:
     """Extract classes and their properties from an RDF graph, applying JSON-LD context aliases.
     
     Args:
         graph: RDF graph to extract from
         context: Optional JSON-LD context object used to alias class/property IRIs
+        language: Preferred language for labels and comments (default: 'en')
         
     Returns:
         Dict mapping class URIs to ClassInfo dataclass instances
@@ -109,18 +144,25 @@ def extract_classes_and_properties(graph: Graph, context: dict | list | str | No
     alias_map = _build_alias_map(contexts)
     naming_strategy = ContextAwareNamingStrategy(alias_map) if alias_map else DefaultNamingStrategy()
     classes: dict[str, ClassInfo] = {}
-    _extract_classes(graph, classes, naming_strategy)
+    _extract_classes(graph, classes, naming_strategy, language)
     _extract_properties(graph, classes, naming_strategy)
     return classes
 
 
-def _extract_classes(graph: Graph, classes: dict[str, ClassInfo], naming_strategy: NamingStrategy) -> None:
-    """Extract class definitions from RDF graph."""
+def _extract_classes(graph: Graph, classes: dict[str, ClassInfo], naming_strategy: NamingStrategy, language: str = 'en') -> None:
+    """Extract class definitions from RDF graph.
+    
+    Args:
+        graph: RDF graph to extract from
+        classes: Dictionary to populate with ClassInfo objects
+        naming_strategy: Strategy for generating class/property names
+        language: Preferred language for labels and comments (default: 'en')
+    """
     for subject in graph.subjects(RDF.type, RDFS.Class):
         if str(subject) not in classes:
             class_name = naming_strategy.get_local_name(str(subject))
-            comment = graph.value(subject, RDFS.comment)
-            label = graph.value(subject, RDFS.label)
+            comment = _get_language_value(graph, subject, RDFS.comment, language)
+            label = _get_language_value(graph, subject, RDFS.label, language)
             parents = list(graph.objects(subject, RDFS.subClassOf))
             # Cast to proper types for type checker
             parent_uris_list = [cast(URIRefType, p) for p in parents if isinstance(p, URIRefType)]

@@ -10,7 +10,7 @@ from .utils import extract_prefix_and_local, topological_sort_classes, sanitise_
 from .codegen import generate_docstring, generate_class_definition, generate_property_line, generate_ellipsis_line
 
 
-def create_package(graph: Graph, output_dir: str, context: dict | list | str | None = None, base_cls: type[BaseModel] | None = None) -> None:
+def create_package(graph: Graph, output_dir: str, context: dict | list | str | None = None, base_cls: type[BaseModel] | None = None, language: str = 'en') -> None:
     """Generate a Python module folder structure from an RDFS graph.
     
     Args:
@@ -18,8 +18,9 @@ def create_package(graph: Graph, output_dir: str, context: dict | list | str | N
         output_dir: Directory to write the package structure to
         context: Optional JSON-LD @context document providing aliases (dict, list, or URL string to download)
         base_cls: Base class type to inherit from (default: None, uses BaseModel)
+        language: Preferred language for labels and comments (default: 'en')
     """
-    classes = extract_classes_and_properties(graph, context)
+    classes = extract_classes_and_properties(graph, context, language)
     sorted_class_uris = topological_sort_classes(classes)
     
     # Ensure output directory exists

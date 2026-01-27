@@ -29,7 +29,8 @@ def generate_docstring(label: Optional[str], iri: Optional[str], comment: Option
         docstring_lines = [docstring_first, '']
         for line in str(comment).splitlines():
             comment_line = line.rstrip()
-            if comment_line and not comment_line.endswith('.'):
+            # Only add period if line doesn't end with sentence-ending punctuation
+            if comment_line and not comment_line[-1] in '.!?。！？':
                 comment_line += '.'
             docstring_lines.append(f'{indent}{comment_line}')
         docstring_lines.append(f'{indent}"""')

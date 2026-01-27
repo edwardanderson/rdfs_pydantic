@@ -8,7 +8,7 @@ from .utils import extract_prefix_and_local, topological_sort_classes
 from .codegen import generate_docstring, generate_class_definition, generate_property_line, generate_ellipsis_line
 
 
-def create_module(graph: Graph, context: dict | None = None, base_cls: type[BaseModel] | None = None) -> str:
+def create_module(graph: Graph, context: dict | None = None, base_cls: type[BaseModel] | None = None, language: str = 'en') -> str:
     """Transform RDFS ontology from an RDF graph into Pydantic model code.
     
     Args:
@@ -16,11 +16,12 @@ def create_module(graph: Graph, context: dict | None = None, base_cls: type[Base
         context: Optional JSON-LD @context document providing aliases
         base_cls: Base class type to inherit from (default: None, uses BaseModel)
                  Pass a custom BaseModel subclass for specialized base models
+        language: Preferred language for labels and comments (default: 'en')
         
     Returns:
         Python code defining Pydantic models
     """
-    classes = extract_classes_and_properties(graph, context)
+    classes = extract_classes_and_properties(graph, context, language)
     
     # Import BaseModel
     import_line = "from pydantic import BaseModel"

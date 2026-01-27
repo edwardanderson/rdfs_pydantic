@@ -99,6 +99,11 @@ def module(
             None,
             "--bind",
             help="Bind prefixes to namespaces (format: 'prefix http://namespace', can be specified multiple times)"
+        ),
+        language: str = typer.Option(
+            'en',
+            "--language",
+            help="Preferred language for labels and comments (default: 'en')"
         )
     ):
     """Generate Pydantic models from RDFS ontology/ontologies and print to stdout."""
@@ -146,7 +151,7 @@ def module(
             typer.echo(str(e), err=True)
             raise typer.Exit(1)
     
-    code = create_module(g, context=ctx)
+    code = create_module(g, context=ctx, language=language)
     print(code)
 
 @app.command()
@@ -170,6 +175,11 @@ def package(
         None,
         "--bind",
         help="Bind prefixes to namespaces (format: 'prefix http://namespace', can be specified multiple times)"
+    ),
+    language: str = typer.Option(
+        'en',
+        "--language",
+        help="Preferred language for labels and comments (default: 'en')"
     )
 ):
     """Generate a Python package of Pydantic models from RDFS ontology/ontologies."""
@@ -219,7 +229,7 @@ def package(
             typer.echo(str(e), err=True)
             raise typer.Exit(1)
     
-    create_package(g, output_dir=output_dir, context=ctx)
+    create_package(g, output_dir=output_dir, context=ctx, language=language)
     typer.echo(f"Package written to {output_dir}")
 
 if __name__ == "__main__":

@@ -52,6 +52,7 @@ def test_rdfs_to_pydantic(fixture_path, suffix):
 
     ontology = arrange_sections.get("ontology", "")
     context_json = arrange_sections.get("context", "")
+    language = arrange_sections.get("language", "").strip() or None
     expected = fixtures.get(f"expected-{suffix}", "")
 
     if not ontology or not expected:
@@ -70,7 +71,11 @@ def test_rdfs_to_pydantic(fixture_path, suffix):
     g = Graph()
     g.parse(data=ontology, format="turtle")
 
-    result = create_module(g, context=context)
+    # Pass language parameter if specified in test
+    if language:
+        result = create_module(g, context=context, language=language)
+    else:
+        result = create_module(g, context=context)
 
     assert result.strip() == expected.strip(), (
         f"[{fixture_path} | suffix={suffix}]\nExpected model:\n{expected}\n\nGot:\n{result}"
