@@ -1,6 +1,6 @@
 """Generate type annotations for RDF properties."""
 
-from .utils import sanitise_identifier
+from .naming import NamingStrategy, DefaultNamingStrategy
 
 # XML Schema and common RDF datatypes that should be treated as primitives
 PRIMITIVE_DATATYPES = {
@@ -20,16 +20,19 @@ PRIMITIVE_DATATYPES = {
     "http://www.w3.org/2000/01/rdf-schema#Literal": "str",
 }
 
-def get_property_type(range_uri, alias_map: dict | None = None) -> str:
+def get_property_type(range_uri, naming_strategy: NamingStrategy | None = None) -> str:
     """Get the Python type annotation for an RDFS range.
     
     Args:
         range_uri: The RDFS range URI
-        alias_map: Optional mapping of IRI -> alias from JSON-LD contexts
+        naming_strategy: Optional naming strategy for extracting class names
         
     Returns:
         Python type annotation string
     """
+    if naming_strategy is None:
+        naming_strategy = DefaultNamingStrategy()
+        
     if not range_uri:
         return "str | None"
 
@@ -44,20 +47,23 @@ def get_property_type(range_uri, alias_map: dict | None = None) -> str:
         return "str"
 
     # Otherwise it's a class reference
-    class_name = _extract_local_name(range_uri, alias_map)
+    class_name = naming_strategy.get_local_name(range_str)
     return f"list[{class_name}]"
 
 
-def get_union_property_type(range_uris: list, alias_map: dict | None = None) -> str:
+def get_union_property_type(range_uris: list, naming_strategy: NamingStrategy | None = None) -> str:
     """Get the Python type annotation for multiple RDFS ranges (union types).
     
     Args:
         range_uris: List of RDFS range URIs
-        alias_map: Optional mapping of IRI -> alias from JSON-LD contexts
+        naming_strategy: Optional naming strategy for extracting class names
         
     Returns:
         Python type annotation string with union types
     """
+    if naming_strategy is None:
+        naming_strategy = DefaultNamingStrategy()
+        
     if not range_uris:
         return "str | None"
 
@@ -78,7 +84,7 @@ def get_union_property_type(range_uris: list, alias_map: dict | None = None) -> 
         if "Literal" in range_str:
             has_literal = True
         else:
-            class_name = _extract_local_name(range_uri, alias_map)
+            class_name = naming_strategy.get_local_name(range_str)
             if class_name not in type_names:
                 type_names.append(class_name)
 
@@ -94,10 +100,3 @@ def get_union_property_type(range_uris: list, alias_map: dict | None = None) -> 
     
     return f"list[{union_types}]"
 
-
-def _extract_local_name(uri, alias_map: dict | None = None) -> str:
-    """Extract the local name from a URI, honoring JSON-LD aliases when available."""
-    uri_str = str(uri)
-    if alias_map is not None and uri_str in alias_map:
-        return sanitise_identifier(alias_map[uri_str])
-    return sanitise_identifier(uri_str.split("/")[-1])

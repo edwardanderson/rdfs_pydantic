@@ -7,6 +7,8 @@ from urllib.request import urlopen
 from rdflib import Graph
 from rdflib.namespace import RDF, RDFS
 from .utils import sanitise_identifier
+from .models import ClassInfo, PropertyInfo, IriComponents
+from .naming import NamingStrategy, DefaultNamingStrategy, ContextAwareNamingStrategy
 
 
 def _validate_prefix_bindings(graph: Graph) -> None:
@@ -47,13 +49,8 @@ def _get_namespace(iri: str) -> str:
         "http://example.org/Person" -> "http://example.org/"
         "http://example.org#Person" -> "http://example.org#"
     """
-    # Check for # separator (common in RDF)
-    if "#" in iri:
-        return iri.rsplit("#", 1)[0] + "#"
-    # Otherwise use / separator
-    elif "/" in iri:
-        return iri.rsplit("/", 1)[0] + "/"
-    return ""
+    components = IriComponents.parse(iri)
+    return components.namespace
 
 
 def _is_prefix_bound(graph: Graph, namespace: str) -> bool:
@@ -72,7 +69,7 @@ def _is_prefix_bound(graph: Graph, namespace: str) -> bool:
     return False
 
 
-def extract_classes_and_properties(graph: Graph, context: dict | list | str | None = None) -> dict:
+def extract_classes_and_properties(graph: Graph, context: dict | list | str | None = None) -> dict[str, ClassInfo]:
     """Extract classes and their properties from an RDF graph, applying JSON-LD context aliases.
     
     Args:
@@ -80,7 +77,7 @@ def extract_classes_and_properties(graph: Graph, context: dict | list | str | No
         context: Optional JSON-LD context object used to alias class/property IRIs
         
     Returns:
-        Dict mapping class URIs to class info including name, properties, parent classes, etc.
+        Dict mapping class URIs to ClassInfo dataclass instances
         
     Raises:
         ValueError: If any rdfs:Class or rdf:Property instance lacks a bound prefix
@@ -88,33 +85,34 @@ def extract_classes_and_properties(graph: Graph, context: dict | list | str | No
     _validate_prefix_bindings(graph)
     contexts = _normalize_contexts(context)
     alias_map = _build_alias_map(contexts)
-    classes = {}
-    _extract_classes(graph, classes, alias_map)
-    _extract_properties(graph, classes, alias_map)
+    naming_strategy = ContextAwareNamingStrategy(alias_map) if alias_map else DefaultNamingStrategy()
+    classes: dict[str, ClassInfo] = {}
+    _extract_classes(graph, classes, naming_strategy)
+    _extract_properties(graph, classes, naming_strategy)
     return classes
 
 
-def _extract_classes(graph: Graph, classes: dict, alias_map: dict) -> None:
+def _extract_classes(graph: Graph, classes: dict[str, ClassInfo], naming_strategy: NamingStrategy) -> None:
     """Extract class definitions from RDF graph."""
     for subject in graph.subjects(RDF.type, RDFS.Class):
         if str(subject) not in classes:
-            class_name = _extract_local_name(subject, alias_map)
+            class_name = naming_strategy.get_local_name(str(subject))
             comment = graph.value(subject, RDFS.comment)
             label = graph.value(subject, RDFS.label)
             parents = list(graph.objects(subject, RDFS.subClassOf))
-            classes[str(subject)] = {
-                "name": class_name,
-                "comment": str(comment) if comment else None,
-                "label": str(label) if label else None,
-                "iri": str(subject),
-                "parent_uris": parents,
-                "properties": {},
-                "uri": subject,
-                "graph": graph,
-            }
+            classes[str(subject)] = ClassInfo(
+                name=class_name,
+                comment=str(comment) if comment else None,
+                label=str(label) if label else None,
+                iri=str(subject),
+                parent_uris=parents,
+                properties={},
+                uri=subject,
+                graph=graph,
+            )
 
 
-def _extract_properties(graph: Graph, classes: dict, alias_map: dict) -> None:
+def _extract_properties(graph: Graph, classes: dict[str, ClassInfo], naming_strategy: NamingStrategy) -> None:
     """Extract property definitions and attach to classes."""
     from .type_annotation import get_property_type, get_union_property_type
     
@@ -124,7 +122,7 @@ def _extract_properties(graph: Graph, classes: dict, alias_map: dict) -> None:
         ranges = list(graph.objects(prop, RDFS.range))
         if not domains or not ranges:
             continue
-        prop_name = _extract_local_name(prop, alias_map)
+        prop_name = naming_strategy.get_local_name(str(prop))
         
         # Filter ranges to only include classes that exist in our extracted classes
         # or primitive datatypes. This prevents references to classes that aren't in the ontology version being used
@@ -143,29 +141,21 @@ def _extract_properties(graph: Graph, classes: dict, alias_map: dict) -> None:
             continue
             
         if len(valid_ranges) == 1:
-            prop_type = get_property_type(valid_ranges[0], alias_map)
+            prop_type = get_property_type(valid_ranges[0], naming_strategy)
         else:
-            prop_type = get_union_property_type(valid_ranges, alias_map)
+            prop_type = get_union_property_type(valid_ranges, naming_strategy)
         for domain in domains:
             if str(domain) in classes:
-                classes[str(domain)]["properties"][prop_name] = {
-                    "name": prop_name,
-                    "type": prop_type,
-                    "ranges": valid_ranges
-                }
+                classes[str(domain)].properties[prop_name] = PropertyInfo(
+                    name=prop_name,
+                    type_annotation=prop_type,
+                    ranges=valid_ranges
+                )
 
 
-def _extract_local_name(uri, alias_map: dict) -> str:
-    """Extract the local name from a URI, honoring JSON-LD aliases if provided."""
-    uri_str = str(uri)
-    if alias_map and uri_str in alias_map:
-        return sanitise_identifier(alias_map[uri_str])
-    return sanitise_identifier(uri_str.split("/")[-1])
-
-
-def _build_alias_map(contexts: list[dict] | None) -> dict:
+def _build_alias_map(contexts: list[dict] | None) -> dict[str, str]:
     """Build a map of IRI -> alias from JSON-LD @context documents."""
-    alias_map: dict = {}
+    alias_map: dict[str, str] = {}
     if not contexts:
         return alias_map
 
@@ -177,7 +167,7 @@ def _build_alias_map(contexts: list[dict] | None) -> dict:
             continue
         
         # First pass: collect prefix mappings
-        prefixes: dict = {}
+        prefixes: dict[str, str] = {}
         for key, value in ctx_body.items():
             if isinstance(key, str) and not key.startswith("@") and isinstance(value, str):
                 # This is a prefix definition (e.g., "ex": "http://example.org/")
@@ -227,7 +217,7 @@ def _normalize_contexts(context) -> list[dict] | None:
     return contexts or None
 
 
-def _load_context_from_str(value: str):
+def _load_context_from_str(value: str) -> dict | None:
     """Load a context from a JSON string, file path, or URL."""
     stripped = value.lstrip()
     if stripped.startswith("{"):

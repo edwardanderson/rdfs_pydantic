@@ -96,8 +96,8 @@ def _group_by_prefix(sorted_class_uris: list[str], classes: dict) -> dict[str, l
     prefix_to_classes: dict[str, list[tuple[str, str]]] = {}
     for class_uri in sorted_class_uris:
         info = classes[class_uri]
-        g = info["graph"]
-        prefix, local = extract_prefix_and_local(info["uri"], g)
+        g = info.graph
+        prefix, local = extract_prefix_and_local(info.uri, g)
         prefix_to_classes.setdefault(prefix, []).append((local, class_uri))
     return prefix_to_classes
 
@@ -111,11 +111,11 @@ def _create_toplevel_init(prefix_to_classes: dict[str, list[tuple[str, str]]], c
     # Collect all imports from each prefix package
     for prefix, class_list in sorted(prefix_to_classes.items()):
         for local, class_uri in sorted(class_list):
-            class_name = classes[class_uri]['name']
+            class_name = classes[class_uri].name
             all_imports.append(class_name)
             init_lines.append(f"from .{prefix}.{local} import {class_name}")
             # Only rebuild if class has properties that reference other classes
-            if classes[class_uri]['properties']:
+            if classes[class_uri].properties:
                 rebuild_calls.append(class_name)
     
     # Add __all__ to control what's exported
@@ -153,7 +153,7 @@ def _create_prefix_package(prefix: str, class_list: list[tuple[str, str]], class
     # Write __init__.py with imports (don't call model_rebuild - forward refs are handled by Pydantic)
     init_lines = []
     for local, class_uri in sorted(class_list):
-        class_name = classes[class_uri]['name']
+        class_name = classes[class_uri].name
         init_lines.append(f"from .{local} import {class_name}")
     
     with open(os.path.join(folder, "__init__.py"), "w", encoding="utf-8") as f:
@@ -167,16 +167,16 @@ def _create_prefix_package(prefix: str, class_list: list[tuple[str, str]], class
 def _write_class_file(local: str, class_uri: str, prefix: str, class_list: list[tuple[str, str]], classes: dict, folder: str, base_cls: type[BaseModel] | None = None) -> None:
     """Write a single class file."""
     info = classes[class_uri]
-    class_name = info["name"]
-    parent_uris = _dedupe_parent_uris(info["parent_uris"], classes)
-    properties = info["properties"]
-    label = info.get("label")
-    iri = info.get("iri")
-    comment = info.get("comment")
+    class_name = info.name
+    parent_uris = _dedupe_parent_uris(info.parent_uris, classes)
+    properties = info.properties
+    label = info.label
+    iri = info.iri
+    comment = info.comment
     
     # Determine parent imports and names
     parent_imports = _get_parent_imports(parent_uris, classes, prefix)
-    parent_names = [classes[str(parent_uri)]["name"] for parent_uri in parent_uris if str(parent_uri) in classes]
+    parent_names = [classes[str(parent_uri)].name for parent_uri in parent_uris if str(parent_uri) in classes]
     
     # Determine property type imports (both same-namespace and cross-namespace)
     property_imports = _get_property_imports(properties, classes, prefix, local)
@@ -223,7 +223,7 @@ def _write_class_file(local: str, class_uri: str, prefix: str, class_list: list[
     if properties:
         for prop_name in sorted(properties):
             prop = properties[prop_name]
-            lines.append(generate_property_line(prop['name'], prop['type']))
+            lines.append(generate_property_line(prop.name, prop.type_annotation))
     else:
         lines.append(generate_ellipsis_line())
     lines.append("")
@@ -241,7 +241,7 @@ def _get_parent_imports(parent_uris: list, classes: dict, current_prefix: str) -
     for parent_uri in parent_uris:
         if str(parent_uri) in classes:
             parent_info = classes[str(parent_uri)]
-            parent_n3 = parent_info["uri"].n3(namespace_manager=parent_info["graph"].namespace_manager)
+            parent_n3 = parent_info.uri.n3(namespace_manager=parent_info.graph.namespace_manager)
             if ":" in parent_n3:
                 parent_prefix, parent_local = parent_n3.split(":", 1)
             else:
@@ -250,9 +250,9 @@ def _get_parent_imports(parent_uris: list, classes: dict, current_prefix: str) -
             parent_local = sanitise_identifier(parent_local)
             
             if parent_prefix == current_prefix:
-                imports.append(f"from .{parent_local} import {parent_info['name']}")
+                imports.append(f"from .{parent_local} import {parent_info.name}")
             else:
-                imports.append(f"from ..{parent_prefix}.{parent_local} import {parent_info['name']}")
+                imports.append(f"from ..{parent_prefix}.{parent_local} import {parent_info.name}")
     
     return imports
 
@@ -290,7 +290,8 @@ def _get_ancestor_set(uri_str: str, classes: dict, memo: dict[str, set[str]]) ->
         memo[uri_str] = ancestors
         return ancestors
 
-    for parent_uri in class_info.get("parent_uris", []):
+    parent_uris = getattr(class_info, "parent_uris", []) if class_info else []
+    for parent_uri in parent_uris:
         parent_str = str(parent_uri)
         ancestors.add(parent_str)
         ancestors.update(_get_ancestor_set(parent_str, classes, memo))
@@ -309,14 +310,14 @@ def _get_property_imports(properties: dict, classes: dict, current_prefix: str, 
     imported_classes: set[tuple[str, str]] = set()  # (prefix, class_name) pairs
     
     for prop_name, prop_info in properties.items():
-        prop_type = prop_info.get("type", "")
-        ranges = prop_info.get("ranges", [])
+        prop_type = prop_info.type_annotation
+        ranges = prop_info.ranges
         
         # Extract class URIs from ranges
         for range_uri in ranges:
             if str(range_uri) in classes:
                 range_info = classes[str(range_uri)]
-                range_n3 = range_info["uri"].n3(namespace_manager=range_info["graph"].namespace_manager)
+                range_n3 = range_info.uri.n3(namespace_manager=range_info.graph.namespace_manager)
                 
                 if ":" in range_n3:
                     range_prefix, range_local = range_n3.split(":", 1)
@@ -325,7 +326,7 @@ def _get_property_imports(properties: dict, classes: dict, current_prefix: str, 
                 range_prefix = sanitise_identifier(range_prefix)
                 range_local = sanitise_identifier(range_local)
                 
-                class_name = range_info["name"]
+                class_name = range_info.name
                 
                 # Skip self-import
                 if range_prefix == current_prefix and range_local == current_local:
@@ -362,13 +363,13 @@ def _write_class_stub_file(local: str, class_name: str, parent_names: list[str] 
             parent_uri_str = str(parent_uri)
             if parent_uri_str in classes:
                 parent_info = classes[parent_uri_str]
-                parent_props = parent_info.get("properties", {})
+                parent_props = parent_info.properties
                 # Add parent properties (don't override direct properties)
                 for prop_name, prop_info in parent_props.items():
                     if prop_name not in all_properties:
                         all_properties[prop_name] = prop_info
                 # Recursively collect from grandparents
-                grandparent_uris = parent_info.get("parent_uris", [])
+                grandparent_uris = parent_info.parent_uris
                 if grandparent_uris:
                     collect_parent_properties(grandparent_uris)
     
@@ -387,7 +388,7 @@ def _write_class_stub_file(local: str, class_name: str, parent_names: list[str] 
         init_params = ["self"]
         for prop_name in sorted(all_properties):
             prop = all_properties[prop_name]
-            prop_type = prop['type']
+            prop_type = prop.type_annotation
             # Make all parameters optional with default None
             init_params.append(f"{prop_name}: {prop_type} | None = None")
         
@@ -398,7 +399,7 @@ def _write_class_stub_file(local: str, class_name: str, parent_names: list[str] 
         # Add property type hints
         for prop_name in sorted(all_properties):
             prop = all_properties[prop_name]
-            prop_type = prop['type']
+            prop_type = prop.type_annotation
             lines.append(f"    {prop_name}: {prop_type}")
     else:
         lines.append("    def __init__(self) -> None: ...")

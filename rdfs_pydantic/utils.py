@@ -63,26 +63,35 @@ def topological_sort_classes(classes: dict) -> list:
     in the output, avoiding forward reference issues.
     
     Args:
-        classes: Dict of class_uri -> class_info
+        classes: Dict of class_uri -> class_info (supports dict or dataclass values)
         
     Returns:
         List of class URIs sorted topologically
     """
     # Build a dependency graph
-    dependencies = {}  # class_uri -> set of class_uris it depends on
+    dependencies: dict[str, set[str]] = {}
 
     for class_uri, class_info in classes.items():
-        deps = set()
+        deps: set[str] = set()
 
         # Add parent class dependencies
-        for parent_uri in class_info["parent_uris"]:
+        parent_uris = getattr(class_info, "parent_uris", None)
+        if parent_uris is None and isinstance(class_info, dict):
+            parent_uris = class_info.get("parent_uris", [])
+        for parent_uri in parent_uris or []:
             if str(parent_uri) in classes:
                 deps.add(str(parent_uri))
 
         # Add property type dependencies
-        for prop_info in class_info["properties"].values():
-            # Extract class names from property types (e.g., "list[ClassName] = []")
-            prop_type = prop_info["type"]
+        prop_map = getattr(class_info, "properties", None)
+        if prop_map is None and isinstance(class_info, dict):
+            prop_map = class_info.get("properties", {})
+        for prop_info in (prop_map or {}).values():
+            # Extract class names from property types (e.g., "list[ClassName]")
+            prop_type = getattr(prop_info, "type_annotation", None)
+            if prop_type is None and isinstance(prop_info, dict):
+                prop_type = prop_info.get("type", "")
+            prop_type = prop_type or ""
             # Check if this property references another class
             if "list[" in prop_type:
                 # Extract the type inside list[...]
@@ -95,7 +104,10 @@ def topological_sort_classes(classes: dict) -> list:
                         type_name = type_name.strip()
                         # Find the class URI that has this name
                         for other_uri, other_info in classes.items():
-                            if other_info["name"] == type_name:
+                            other_name = getattr(other_info, "name", None)
+                            if other_name is None and isinstance(other_info, dict):
+                                other_name = other_info.get("name")
+                            if other_name == type_name:
                                 deps.add(other_uri)
 
         dependencies[class_uri] = deps
