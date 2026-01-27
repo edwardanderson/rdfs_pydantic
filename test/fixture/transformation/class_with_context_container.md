@@ -100,5 +100,5 @@ from pydantic import BaseModel
 
 class Entity(BaseModel):
     """<http://example.org/E1>."""
-    property1: list[Entity] = []
+    property1: Entity | list[Entity] | None = None
 ```

@@ -5,7 +5,12 @@ from rdflib import Graph
 from pydantic import BaseModel
 from .extraction import extract_classes_and_properties
 from .utils import extract_prefix_and_local, topological_sort_classes
-from .codegen import generate_docstring, generate_class_definition, generate_property_line, generate_ellipsis_line
+from .codegen import (
+    generate_docstring,
+    generate_class_definition,
+    generate_property_line,
+    generate_ellipsis_line,
+)
 
 
 def create_module(graph: Graph, context: dict | None = None, base_cls: type[BaseModel] | None = None, language: str = 'en') -> str:
@@ -23,7 +28,6 @@ def create_module(graph: Graph, context: dict | None = None, base_cls: type[Base
     """
     classes = extract_classes_and_properties(graph, context, language)
     
-    # Import BaseModel
     import_line = "from pydantic import BaseModel"
     lines = ["from __future__ import annotations", import_line, "", ""]
     sorted_class_uris = topological_sort_classes(classes)
@@ -129,7 +133,16 @@ def _emit_namespace_group(lines: list, classes_in_prefix: list, classes: dict, p
         if group_class_info.properties:
             for prop_name in sorted(group_class_info.properties):
                 prop = group_class_info.properties[prop_name]
-                lines.append(generate_property_line(prop.name, prop.type_annotation, "        "))
+                lines.append(
+                    generate_property_line(
+                        prop.name,
+                        prop.type_annotation,
+                        "        ",
+                        prop.label,
+                        prop.iri,
+                        prop.comment,
+                    )
+                )
         else:
             lines.append(generate_ellipsis_line("        "))
         lines.append("")
@@ -160,7 +173,16 @@ def _emit_single_class(lines: list, class_uri: str, classes: dict, indent: str, 
     if class_info.properties:
         for prop_name in sorted(class_info.properties):
             prop = class_info.properties[prop_name]
-            lines.append(generate_property_line(prop.name, prop.type_annotation, indent + "    "))
+            lines.append(
+                generate_property_line(
+                    prop.name,
+                    prop.type_annotation,
+                    indent + "    ",
+                    prop.label,
+                    prop.iri,
+                    prop.comment,
+                )
+            )
     else:
         lines.append(generate_ellipsis_line(indent + "    "))
     lines.append("")
@@ -234,26 +256,52 @@ def _qualify_property_types(classes: dict, class_name_map: dict) -> None:
             prop_type = prop_info.type_annotation
             
             # Parse and replace class names in the type annotation
-            # Handle patterns like "list[ClassName]" or "list[Class1 | Class2]"
-            if "list[" in prop_type:
-                start = prop_type.find("[") + 1
-                end = prop_type.find("]")
-                if start > 0 and end > start:
-                    type_content = prop_type[start:end]
-                    # Split by | for union types
-                    type_parts = [t.strip() for t in type_content.split("|")]
+            # Handle new format: "Type | list[Type] | None" or primitives
+            if " | list[" in prop_type:
+                # Pattern: "Type | list[Type] | None"
+                # Split into parts: before " | list[", inside list, after "]"
+                list_start_idx = prop_type.find(" | list[")
+                if list_start_idx >= 0:
+                    # Extract parts
+                    before_list = prop_type[:list_start_idx]  # e.g., "Person"
+                    list_start_content_idx = list_start_idx + 8  # len(" | list[")
+                    list_end_idx = prop_type.rfind("]")  # Find closing ] before " | None"
+                    list_content = prop_type[list_start_content_idx:list_end_idx]  # e.g., "Person"
+                    after_list = prop_type[list_end_idx + 1:]  # e.g., " | None"
+                    
+                    # Qualify the before_list part
+                    qualified_before = _qualify_type_name(before_list, prop_info, classes, class_name_map)
+                    
+                    # Qualify list_content (which may contain union types)
+                    type_parts = [t.strip() for t in list_content.split("|")]
                     qualified_parts = []
                     for type_name in type_parts:
-                        # Find which URI this references by checking the ranges
                         resolved_name = type_name
                         for range_uri in getattr(prop_info, "ranges", []) or []:
                             range_uri_str = str(range_uri)
                             if range_uri_str in classes and classes[range_uri_str].name == type_name:
-                                # Found the matching class, use its qualified name
                                 resolved_name = class_name_map.get(range_uri_str, type_name)
                                 break
                         qualified_parts.append(resolved_name)
                     
-                    # Rebuild the type annotation
-                    qualified_content = " | ".join(qualified_parts)
-                    prop_info.type_annotation = f"list[{qualified_content}]"
+                    qualified_list_content = " | ".join(qualified_parts)
+                    prop_info.type_annotation = f"{qualified_before} | list[{qualified_list_content}]{after_list}"
+
+
+def _qualify_type_name(type_name: str, prop_info, classes: dict, class_name_map: dict) -> str:
+    """Qualify a single type name using the class_name_map.
+    
+    Args:
+        type_name: The type name to qualify
+        prop_info: The property info containing ranges
+        classes: Dict of class URIs to class info
+        class_name_map: Mapping of class URIs to qualified names
+        
+    Returns:
+        The qualified type name if found, otherwise the original type name
+    """
+    for range_uri in getattr(prop_info, "ranges", []) or []:
+        range_uri_str = str(range_uri)
+        if range_uri_str in classes and classes[range_uri_str].name == type_name:
+            return class_name_map.get(range_uri_str, type_name)
+    return type_name

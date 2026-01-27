@@ -181,7 +181,7 @@ from pydantic import BaseModel
 
 class E1(BaseModel):
     """Entité <http://example.org/E1>."""
-    P1_has_name: str | None = None
+    P1_has_name: str | list[str] | None = None
 ```
 
 ## Fallback to untagged literal when requested language unavailable

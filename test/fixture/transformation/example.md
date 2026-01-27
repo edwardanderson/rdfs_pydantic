@@ -25,6 +25,6 @@ class Example(BaseModel):
 
     Example comment.
     """
-    seeAlso: list[Example] = []
-    value: str | None = None
+    seeAlso: Example | list[Example] | None = None
+    value: str | list[str] | None = None
 ```

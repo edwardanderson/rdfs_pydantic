@@ -17,5 +17,5 @@ from pydantic import BaseModel
 
 class E1(BaseModel):
     """<http://example.org/E1>."""
-    p1: str | None = None
+    p1: str | list[str] | None = None
 ```

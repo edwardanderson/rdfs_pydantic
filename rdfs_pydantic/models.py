@@ -61,12 +61,15 @@ class PropertyInfo:
 
     - `name`: Python-safe property identifier
     - `type_annotation`: The rendered Python type (e.g. "list[Email | str]")
+    - `label`/`comment`: Optional text used for Field descriptions
     - `ranges`: Original RDF range URIs used for import/qualification logic
     - `iri`: Optional IRI for the property
     """
 
     name: str
     type_annotation: str
+    label: Optional[str] = None
+    comment: Optional[str] = None
     ranges: List[URIRef] = field(default_factory=list)
     iri: Optional[str] = None
 
