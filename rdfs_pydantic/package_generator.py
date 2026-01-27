@@ -110,24 +110,23 @@ def _create_toplevel_init(prefix_to_classes: dict[str, list[tuple[str, str]]], c
         init_lines.append("")
         init_lines.append(f"__all__ = {repr(sorted(all_imports))}")
     
-    # Add a function to rebuild all models - users can call this after importing
+    # Automatically rebuild models at import time to resolve forward references
     if rebuild_calls:
         init_lines.append("")
-        init_lines.append("def rebuild_all_models() -> None:")
-        init_lines.append('    """Rebuild all models to resolve forward references."""')
-        init_lines.append('    import sys')
-        init_lines.append('    # Get this module''s globals')
-        init_lines.append('    this_module_globals = globals()')
-        init_lines.append('    # Update module globals for all modules containing our classes')
-        init_lines.append('    for mod_name in list(sys.modules.keys()):')
-        init_lines.append('        if mod_name.startswith(\"linked_art.\"):')
-        init_lines.append('            mod = sys.modules[mod_name]')
-        init_lines.append('            mod_dict = vars(mod)')
-        init_lines.append('            # Add all top-level classes to this module''s globals')
-        init_lines.append('            mod_dict.update(this_module_globals)')
-        init_lines.append('    ')
+        init_lines.append("# Rebuild models to resolve forward references")
+        init_lines.append("import sys")
+        init_lines.append("_this_module_globals = globals()")
+        init_lines.append("for _mod_name in list(sys.modules.keys()):")
+        
+        # Get the package name from output_dir (last component of path)
+        pkg_name = os.path.basename(os.path.normpath(output_dir))
+        init_lines.append(f"    if _mod_name.startswith(\"{pkg_name}.\"):")
+        init_lines.append("        _mod = sys.modules[_mod_name]")
+        init_lines.append("        _mod_dict = vars(_mod)")
+        init_lines.append("        _mod_dict.update(_this_module_globals)")
+        
         for class_name in sorted(set(rebuild_calls)):
-            init_lines.append(f"    {class_name}.model_rebuild()")
+            init_lines.append(f"{class_name}.model_rebuild()")
     
     with open(os.path.join(output_dir, "__init__.py"), "w", encoding="utf-8") as f:
         f.write("\n".join(init_lines) + "\n" if init_lines else "")
