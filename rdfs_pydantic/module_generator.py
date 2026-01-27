@@ -20,8 +20,11 @@ def create_module(graph: Graph, context: dict | None = None, base_cls: type[Base
     Args:
         graph: RDFLib Graph object containing RDFS ontology
         context: Optional JSON-LD @context document providing aliases
-        base_cls: Base class type to inherit from (default: None, uses BaseModel)
-                 Pass a custom BaseModel subclass for specialized base models
+        base_cls: Base class type to inherit from (default: None, uses BaseModel).
+                 Pass a custom BaseModel subclass for specialized base models.
+                 When emit_iris=True, consider using IRIAwareBaseModel or defining
+                 a _class_iri ClassVar in your base class. See rdfs_pydantic.base
+                 for examples and the RDFSBaseModel protocol.
         language: Preferred language for labels and comments (default: 'en')
         emit_iris: If True, emit class IRIs as ClassVar and property IRIs in Field metadata (default: False)
         
