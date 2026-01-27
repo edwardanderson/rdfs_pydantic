@@ -385,10 +385,6 @@ def _write_class_stub_file(local: str, class_name: str, parent_names: list[str] 
     # Add __init__ with explicit parameter hints for IDE autocompletion
     if all_properties:
         init_params = ["self"]
-        # Add base class fields first (id and type are common base fields)
-        init_params.append("id: str | None = None")
-        init_params.append("type: str | None = None")
-        init_params.append("_label: str | None = None")
         for prop_name in sorted(all_properties):
             prop = all_properties[prop_name]
             prop_type = prop['type']
@@ -405,7 +401,7 @@ def _write_class_stub_file(local: str, class_name: str, parent_names: list[str] 
             prop_type = prop['type']
             lines.append(f"    {prop_name}: {prop_type}")
     else:
-        lines.append("    def __init__(self, id: str | None = None, type: str | None = None, _label: str | None = None) -> None: ...")
+        lines.append("    def __init__(self) -> None: ...")
     
     with open(os.path.join(folder, f"{local}.pyi"), "w", encoding="utf-8") as f:
         f.write("\n".join(lines).rstrip() + "\n")
