@@ -24,12 +24,12 @@ class Email(BaseModel):
     ...
 
 
-class PhoneNumber(BaseModel):
-    """<http://example.org/PhoneNumber>."""
-    ...
-
-
 class Person(BaseModel):
     """<http://example.org/Person>."""
     contact: list[Email | PhoneNumber] = []
+
+
+class PhoneNumber(BaseModel):
+    """<http://example.org/PhoneNumber>."""
+    ...
 ```

@@ -46,13 +46,16 @@ def create_module(graph: Graph, context: dict | None = None, base_cls: type[Base
             continue
             
         class_info = classes[class_uri]
-        g = class_info.graph
-        prefix, local = extract_prefix_and_local(class_info.uri, g)
+        # Skip if uri or graph is None (shouldn't happen in practice)
+        if class_info.uri is None or class_info.graph is None:
+            continue
+        prefix, local = extract_prefix_and_local(class_info.uri, class_info.graph)
         
         # Check if this class is part of a namespace group
         if prefix in prefix_groups and class_uri in prefix_groups[prefix]:
-            # Find all classes in this prefix group
-            classes_in_prefix = [uri for uri in prefix_groups[prefix] if uri not in processed_classes]
+            # Find all classes in this prefix group, maintaining topological order from sorted_class_uris
+            prefix_uris_set = set(prefix_groups[prefix])
+            classes_in_prefix = [uri for uri in sorted_class_uris if uri in prefix_uris_set and uri not in processed_classes]
             
             if classes_in_prefix:
                 lines.append(f"class {prefix}:")
@@ -72,8 +75,10 @@ def _group_by_local_name(sorted_class_uris: list[str], classes: dict) -> dict:
     local_name_to_uris: dict = {}
     for class_uri in sorted_class_uris:
         class_info = classes[class_uri]
-        g = class_info.graph
-        prefix, local = extract_prefix_and_local(class_info.uri, g)
+        # Skip if uri or graph is None (shouldn't happen in practice)
+        if class_info.uri is None or class_info.graph is None:
+            continue
+        prefix, local = extract_prefix_and_local(class_info.uri, class_info.graph)
         if local not in local_name_to_uris:
             local_name_to_uris[local] = []
         local_name_to_uris[local].append((prefix, class_uri))
@@ -92,9 +97,13 @@ def _identify_prefix_groups(local_name_to_uris: dict) -> dict:
     return prefix_groups
 
 
+
 def _emit_namespace_group(lines: list, classes_in_prefix: list, classes: dict, prefix: str, processed_classes: Set, class_name_map: dict, base_cls: type[BaseModel] | None = None) -> None:
-    """Emit a namespace group with all its nested classes."""
-    for group_class_uri in sorted(classes_in_prefix):
+    """Emit a namespace group with all its nested classes.
+    
+    The classes_in_prefix list should already be in topological order.
+    """
+    for group_class_uri in classes_in_prefix:
         processed_classes.add(group_class_uri)
         group_class_info = classes[group_class_uri]
         
