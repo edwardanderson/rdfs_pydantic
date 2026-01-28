@@ -31,7 +31,7 @@ def create_module(graph: Graph, context: dict | None = None, base_cls: type[Base
     Returns:
         Python code defining Pydantic models
     """
-    classes = extract_classes_and_properties(graph, context, language)
+    classes, external_classes = extract_classes_and_properties(graph, context, language)
     
     # Check if any class has properties with IRIs or if any class has an IRI
     has_property_iris = emit_iris and any(
@@ -95,6 +95,10 @@ def create_module(graph: Graph, context: dict | None = None, base_cls: type[Base
             if class_uri not in processed_classes:
                 processed_classes.add(class_uri)
                 _emit_single_class(lines, class_uri, classes, "", class_name_map, base_cls, emit_iris)
+    
+    # Generate stub classes for external references
+    if external_classes:
+        _emit_external_class_stubs(lines, external_classes, graph, base_cls, emit_iris)
     
     return "\n".join(lines).rstrip() + "\n"
 
@@ -339,3 +343,48 @@ def _qualify_type_name(type_name: str, prop_info, classes: dict, class_name_map:
         if range_uri_str in classes and classes[range_uri_str].name == type_name:
             return class_name_map.get(range_uri_str, type_name)
     return type_name
+
+
+def _emit_external_class_stubs(lines: list, external_classes: set[str], graph: Graph, base_cls: type[BaseModel] | None = None, emit_iris: bool = False) -> None:
+    """Generate stub classes for external class references.
+    
+    Args:
+        lines: List of code lines to append to
+        external_classes: Set of external class URIs
+        graph: RDF graph (for namespace resolution)
+        base_cls: Base class to inherit from
+        emit_iris: Whether to emit IRI metadata
+    """
+    from .naming import DefaultNamingStrategy
+    
+    naming_strategy = DefaultNamingStrategy()
+    
+    # Sort external classes by name for deterministic output
+    sorted_externals = sorted(external_classes, key=lambda uri: naming_strategy.get_local_name(uri))
+    
+    for external_uri in sorted_externals:
+        class_name = naming_strategy.get_local_name(external_uri)
+        
+        # Determine base class
+        base_class_name = base_cls.__name__ if base_cls else "BaseModel"
+        
+        # Generate class definition
+        # Don't add blank lines - previous class already ends with 2 blank lines
+        lines.append(f"class {class_name}({base_class_name}):")
+        
+        # Generate docstring
+        lines.append(f'    """{class_name} <{external_uri}>.')
+        lines.append("")
+        lines.append('    External class referenced but not defined in this ontology.')
+        lines.append('    """')
+        
+        # Add IRI metadata if needed
+        if emit_iris:
+            lines.append(f'    _class_iri: ClassVar[str] = "{external_uri}"')
+        else:
+            # Add ellipsis since external stubs have no properties (only when not emitting IRIs)
+            lines.append("    ...")
+        
+        # Add ending blank lines to match normal class formatting
+        lines.append("")
+        lines.append("")

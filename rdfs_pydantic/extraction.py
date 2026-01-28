@@ -125,7 +125,7 @@ def _get_language_value(graph: Graph, subject, predicate, language: str = 'en'):
     return values[0]
 
 
-def extract_classes_and_properties(graph: Graph, context: dict | list | str | None = None, language: str = 'en') -> dict[str, ClassInfo]:
+def extract_classes_and_properties(graph: Graph, context: dict | list | str | None = None, language: str = 'en') -> tuple[dict[str, ClassInfo], set[str]]:
     """Extract classes and their properties from an RDF graph, applying JSON-LD context aliases.
     
     Args:
@@ -134,7 +134,9 @@ def extract_classes_and_properties(graph: Graph, context: dict | list | str | No
         language: Preferred language for labels and comments (default: 'en')
         
     Returns:
-        Dict mapping class URIs to ClassInfo dataclass instances
+        Tuple of (classes dict, external_classes set):
+        - classes: Dict mapping class URIs to ClassInfo dataclass instances
+        - external_classes: Set of external class URIs referenced but not defined
         
     Raises:
         ValueError: If any rdfs:Class or rdf:Property instance lacks a bound prefix
@@ -144,9 +146,10 @@ def extract_classes_and_properties(graph: Graph, context: dict | list | str | No
     alias_map = _build_alias_map(contexts)
     naming_strategy = ContextAwareNamingStrategy(alias_map) if alias_map else DefaultNamingStrategy()
     classes: dict[str, ClassInfo] = {}
+    external_classes: set[str] = set()
     _extract_classes(graph, classes, naming_strategy, language)
-    _extract_properties(graph, classes, naming_strategy, language)
-    return classes
+    _extract_properties(graph, classes, naming_strategy, language, external_classes)
+    return classes, external_classes
 
 
 def _extract_classes(graph: Graph, classes: dict[str, ClassInfo], naming_strategy: NamingStrategy, language: str = 'en') -> None:
@@ -179,9 +182,20 @@ def _extract_classes(graph: Graph, classes: dict[str, ClassInfo], naming_strateg
             )
 
 
-def _extract_properties(graph: Graph, classes: dict[str, ClassInfo], naming_strategy: NamingStrategy, language: str = 'en') -> None:
-    """Extract property definitions and attach to classes."""
+def _extract_properties(graph: Graph, classes: dict[str, ClassInfo], naming_strategy: NamingStrategy, language: str = 'en', external_classes: set[str] | None = None) -> None:
+    """Extract property definitions and attach to classes.
+    
+    Args:
+        graph: RDF graph to extract from
+        classes: Dictionary of extracted classes to populate
+        naming_strategy: Strategy for generating names
+        language: Preferred language for labels and comments
+        external_classes: Set to populate with external class URIs (modified in place)
+    """
     from .type_annotation import get_property_type, get_union_property_type
+    
+    if external_classes is None:
+        external_classes = set()
     
     prop_subjects = set(graph.subjects(RDF.type, RDF.Property))
     for prop in prop_subjects:
@@ -193,17 +207,26 @@ def _extract_properties(graph: Graph, classes: dict[str, ClassInfo], naming_stra
             continue
         prop_name = naming_strategy.get_local_name(str(prop))
         
-        # Filter ranges to only include classes that exist in our extracted classes
-        # or primitive datatypes. This prevents references to classes that aren't in the ontology version being used
+        # Filter ranges to only include classes that exist in our extracted classes,
+        # primitive datatypes, or track as external classes
         valid_ranges = []
         for range_val in ranges:
             range_str = str(range_val)
-            # Check if it's a literal/datatype
-            is_literal = "Literal" in range_str or "XMLSchema" in range_str or range_str.startswith("http://www.w3.org/")
+            # Check if it's a literal/datatype (be specific to avoid catching owl:Thing)
+            is_literal = (
+                "Literal" in range_str or 
+                "XMLSchema" in range_str or 
+                range_str.startswith("http://www.w3.org/2001/XMLSchema#") or
+                range_str == "http://www.w3.org/2000/01/rdf-schema#Literal"
+            )
             # Check if it's in our extracted classes
             is_known_class = range_str in classes
             
             if is_literal or is_known_class:
+                valid_ranges.append(range_val)
+            else:
+                # This is an external class reference - track it and include it
+                external_classes.add(range_str)
                 valid_ranges.append(range_val)
         
         if not valid_ranges:
