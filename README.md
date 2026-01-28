@@ -13,7 +13,7 @@ Create [Pydantic](https://docs.pydantic.dev/latest/) models from [RDFS](https://
 - **Inheritance support**: RDFS `rdfs:subClassOf` becomes Python inheritance
 - **Union types**: Multiple property ranges become union types
 - **Namespace handling**: Automatic disambiguation for classes with identical names across namespaces
-- **Doctrings**: Single- and multi-line docstrings are generated from the class IRI, `rdfs:label` and `rdfs:comment` values
+- **Doctrings**: Single- and multi-line docstrings are generated from the IRI, `rdfs:label` and `rdfs:comment` values
 
 ## Quick Start
 
