@@ -4,6 +4,7 @@ from typing import Set
 from rdflib import Graph
 from pydantic import BaseModel
 from .extraction import extract_classes_and_properties
+from .models import ClassInfo
 from .utils import extract_prefix_and_local, topological_sort_classes
 from .codegen import (
     generate_docstring,
@@ -345,12 +346,12 @@ def _qualify_type_name(type_name: str, prop_info, classes: dict, class_name_map:
     return type_name
 
 
-def _emit_external_class_stubs(lines: list, external_classes: set[str], graph: Graph, base_cls: type[BaseModel] | None = None, emit_iris: bool = False) -> None:
+def _emit_external_class_stubs(lines: list, external_classes: dict[str, ClassInfo], graph: Graph, base_cls: type[BaseModel] | None = None, emit_iris: bool = False) -> None:
     """Generate stub classes for external class references.
     
     Args:
         lines: List of code lines to append to
-        external_classes: Set of external class URIs
+        external_classes: Dict mapping external class URIs to ClassInfo objects with properties
         graph: RDF graph (for namespace resolution)
         base_cls: Base class to inherit from
         emit_iris: Whether to emit IRI metadata
@@ -360,16 +361,16 @@ def _emit_external_class_stubs(lines: list, external_classes: set[str], graph: G
     naming_strategy = DefaultNamingStrategy()
     
     # Sort external classes by name for deterministic output
-    sorted_externals = sorted(external_classes, key=lambda uri: naming_strategy.get_local_name(uri))
+    sorted_externals = sorted(external_classes.keys(), key=lambda uri: naming_strategy.get_local_name(uri))
     
     for external_uri in sorted_externals:
-        class_name = naming_strategy.get_local_name(external_uri)
+        class_info = external_classes[external_uri]
+        class_name = class_info.name
         
         # Determine base class
         base_class_name = base_cls.__name__ if base_cls else "BaseModel"
         
         # Generate class definition
-        # Don't add blank lines - previous class already ends with 2 blank lines
         lines.append(f"class {class_name}({base_class_name}):")
         
         # Generate docstring
@@ -381,9 +382,29 @@ def _emit_external_class_stubs(lines: list, external_classes: set[str], graph: G
         # Add IRI metadata if needed
         if emit_iris:
             lines.append(f'    _class_iri: ClassVar[str] = "{external_uri}"')
+        
+        # Add properties if they exist
+        if class_info.properties:
+            for prop_name, prop_info in class_info.properties.items():
+                # Format property field - type_annotation already includes | list[...] | None
+                if emit_iris and prop_info.iri:
+                    lines.append(f"    {prop_name}: {prop_info.type_annotation} = Field(default=None, json_schema_extra={{\"_property_iri\": \"{prop_info.iri}\"}})")
+                else:
+                    lines.append(f"    {prop_name}: {prop_info.type_annotation} = None")
+                
+                # Add property docstring if available
+                if prop_info.label or prop_info.comment:
+                    label_part = f"{prop_info.label} <{prop_info.iri}>" if prop_info.label and prop_info.iri else (prop_info.label or "")
+                    lines.append(f'    """{label_part}.')
+                    if prop_info.comment:
+                        lines.append("")
+                        lines.append(f"    {prop_info.comment}")
+                    lines.append('    """')
+                    lines.append("")
         else:
-            # Add ellipsis since external stubs have no properties (only when not emitting IRIs)
-            lines.append("    ...")
+            # Add ellipsis only if no properties and not emitting IRIs
+            if not emit_iris:
+                lines.append("    ...")
         
         # Add ending blank lines to match normal class formatting
         lines.append("")
