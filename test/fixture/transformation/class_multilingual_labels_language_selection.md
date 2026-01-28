@@ -182,6 +182,7 @@ from pydantic import BaseModel
 class E1(BaseModel):
     """Entité <http://example.org/E1>."""
     P1_has_name: str | list[str] | None = None
+    """a pour nom <http://example.org/P1_has_name>."""
 ```
 
 ## Fallback to untagged literal when requested language unavailable

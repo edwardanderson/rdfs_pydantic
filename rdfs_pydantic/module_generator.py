@@ -166,7 +166,10 @@ def _emit_namespace_group(lines: list, classes_in_prefix: list, classes: dict, p
                         prop.name,
                         prop.type_annotation,
                         "        ",
-                        prop.iri if emit_iris else None,
+                        prop_iri_for_field=prop.iri if emit_iris else None,
+                        prop_iri_for_docstring=prop.iri,
+                        label=prop.label,
+                        comment=prop.comment,
                     )
                 )
         else:
@@ -208,7 +211,10 @@ def _emit_single_class(lines: list, class_uri: str, classes: dict, indent: str, 
                     prop.name,
                     prop.type_annotation,
                     indent + "    ",
-                    prop.iri if emit_iris else None,
+                    prop_iri_for_field=prop.iri if emit_iris else None,
+                    prop_iri_for_docstring=prop.iri,
+                    label=prop.label,
+                    comment=prop.comment,
                 )
             )
     else:

@@ -228,7 +228,13 @@ def _write_class_file(local: str, class_uri: str, prefix: str, class_list: list[
     if properties:
         for prop_name in sorted(properties):
             prop = properties[prop_name]
-            lines.append(generate_property_line(prop.name, prop.type_annotation))
+            lines.append(generate_property_line(
+                prop.name, 
+                prop.type_annotation,
+                prop_iri_for_docstring=prop.iri,
+                label=prop.label, 
+                comment=prop.comment
+            ))
     else:
         lines.append(generate_ellipsis_line())
     lines.append("")

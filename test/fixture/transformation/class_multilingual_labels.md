@@ -155,6 +155,7 @@ from pydantic import BaseModel
 class E1(BaseModel):
     """Entity <http://example.org/E1>."""
     P1_has_name: str | list[str] | None = None
+    """has name <http://example.org/P1_has_name>."""
 ```
 
 ## Language-tagged label with special characters
