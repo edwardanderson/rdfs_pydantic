@@ -25,7 +25,7 @@ class Artist(BaseModel):
 
     A person who creates art.
     """
-    homepage: str | None = None
+    homepage: str | list[str] | None = None
 
 
 class Exhibition(BaseModel):
@@ -33,5 +33,5 @@ class Exhibition(BaseModel):
 
     A public display of artworks.
     """
-    homepage: str | None = None
+    homepage: str | list[str] | None = None
 ```

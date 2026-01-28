@@ -25,7 +25,7 @@ from pydantic import BaseModel
 class ex1:
     class Entity(BaseModel):
         """<http://example1.org/Entity>."""
-        prop: str | None = None
+        prop: str | list[str] | None = None
 
 
 class ex2:

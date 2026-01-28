@@ -145,7 +145,7 @@ def extract_classes_and_properties(graph: Graph, context: dict | list | str | No
     naming_strategy = ContextAwareNamingStrategy(alias_map) if alias_map else DefaultNamingStrategy()
     classes: dict[str, ClassInfo] = {}
     _extract_classes(graph, classes, naming_strategy, language)
-    _extract_properties(graph, classes, naming_strategy)
+    _extract_properties(graph, classes, naming_strategy, language)
     return classes
 
 
@@ -179,7 +179,7 @@ def _extract_classes(graph: Graph, classes: dict[str, ClassInfo], naming_strateg
             )
 
 
-def _extract_properties(graph: Graph, classes: dict[str, ClassInfo], naming_strategy: NamingStrategy) -> None:
+def _extract_properties(graph: Graph, classes: dict[str, ClassInfo], naming_strategy: NamingStrategy, language: str = 'en') -> None:
     """Extract property definitions and attach to classes."""
     from .type_annotation import get_property_type, get_union_property_type
     
@@ -187,6 +187,8 @@ def _extract_properties(graph: Graph, classes: dict[str, ClassInfo], naming_stra
     for prop in prop_subjects:
         domains = list(graph.objects(prop, RDFS.domain))
         ranges = list(graph.objects(prop, RDFS.range))
+        label = _get_language_value(graph, prop, RDFS.label, language)
+        comment = _get_language_value(graph, prop, RDFS.comment, language)
         if not domains or not ranges:
             continue
         prop_name = naming_strategy.get_local_name(str(prop))
@@ -216,7 +218,10 @@ def _extract_properties(graph: Graph, classes: dict[str, ClassInfo], naming_stra
                 classes[str(domain)].properties[prop_name] = PropertyInfo(
                     name=prop_name,
                     type_annotation=prop_type,
-                    ranges=valid_ranges
+                    label=str(label) if label else None,
+                    comment=str(comment) if comment else None,
+                    ranges=valid_ranges,
+                    iri=str(prop) if isinstance(prop, URIRefType) else str(prop),
                 )
 
 

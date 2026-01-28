@@ -64,22 +64,81 @@ def generate_class_definition(
         return f"{indent}class {class_name}({base_class_name}):"
 
 
-def generate_property_line(prop_name: str, prop_type: str, indent: str = "    ") -> str:
-    """Generate a property definition line.
+def generate_class_iri_line(class_iri: str, indent: str = "    ") -> str:
+    """Generate a class IRI line as ClassVar.
     
     Args:
-        prop_name: Name of the property
-        prop_type: Type annotation for the property (e.g., "list[SomeClass]")
+        class_iri: The IRI of the class
         indent: Indentation string
         
     Returns:
-        Property definition line
+        Class IRI line
     """
-    # Use empty list for list types
-    if prop_type.startswith("list["):
-        return f"{indent}{prop_name}: {prop_type} = []"
-    # For other types, use None as default
-    return f"{indent}{prop_name}: {prop_type} | None = None"
+    return f'{indent}_class_iri: ClassVar[str] = "{class_iri}"'
+
+
+def generate_property_line(
+    prop_name: str, 
+    prop_type: str, 
+    indent: str = "    ", 
+    prop_iri_for_field: Optional[str] = None,
+    prop_iri_for_docstring: Optional[str] = None,
+    label: Optional[str] = None, 
+    comment: Optional[str] = None
+) -> str:
+    """Generate a property definition line with optional docstring.
+    
+    Args:
+        prop_name: Name of the property
+        prop_type: Type annotation for the property (e.g., "str | list[str] | None")
+        indent: Indentation string
+        prop_iri_for_field: Optional IRI for the property (used in Field json_schema_extra)
+        prop_iri_for_docstring: Optional IRI for the property (used in docstring)
+        label: Optional label for the property (used in docstring)
+        comment: Optional comment for the property (used in docstring)
+        
+    Returns:
+        Property definition line(s), including docstring if label or comment provided
+    """
+    lines = []
+    
+    # Build the base field call if we have a property IRI for field metadata
+    if prop_iri_for_field:
+        json_schema_extra = f'{{"_property_iri": "{prop_iri_for_field}"}}'
+        # Type already includes | None, so use it directly
+        lines.append(f"{indent}{prop_name}: {prop_type} = Field(default=None, json_schema_extra={json_schema_extra})")
+    else:
+        # Original behavior without IRI: type already includes | None, so just use it
+        if prop_type.startswith("list["):
+            lines.append(f"{indent}{prop_name}: {prop_type} = []")
+        else:
+            lines.append(f"{indent}{prop_name}: {prop_type} = None")
+    
+    # Add docstring if label or comment provided
+    if label or comment:
+        docstring_first = f'{indent}"""'
+        if label:
+            docstring_first += f'{label}'
+        # Include IRI in docstring if available
+        if prop_iri_for_docstring:
+            if label:
+                docstring_first += ' '
+            docstring_first += f'<{prop_iri_for_docstring}>.'
+        
+        if comment:
+            lines.append(docstring_first)
+            lines.append('')
+            for line in str(comment).splitlines():
+                comment_line = line.rstrip()
+                # Only add period if line doesn't end with sentence-ending punctuation
+                if comment_line and not comment_line[-1] in '.!?。！？':
+                    comment_line += '.'
+                lines.append(f'{indent}{comment_line}')
+            lines.append(f'{indent}"""')
+        else:
+            lines.append(f'{docstring_first}"""')
+    
+    return '\n'.join(lines)
 
 
 def generate_ellipsis_line(indent: str = "    ") -> str:

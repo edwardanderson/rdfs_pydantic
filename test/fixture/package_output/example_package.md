@@ -58,7 +58,7 @@ class Agent(BaseModel):
 
     A person or organisation.
     """
-    name: str | None = None
+    name: str | list[str] | None = None
 ```
 
 [testmark]:# (expected-Artist)
@@ -76,7 +76,7 @@ class Artist(Agent):
 
     A creator of artworks.
     """
-    created: list[Painting] = []
+    created: Painting | list[Painting] | None = None
 ```
 
 [testmark]:# (expected-Artwork)
@@ -93,7 +93,7 @@ class Artwork(BaseModel):
 
     An artistic creation.
     """
-    artist: list[Artist] = []
+    artist: Artist | list[Artist] | None = None
 ```
 
 [testmark]:# (expected-Painting)
@@ -122,7 +122,7 @@ class Exhibition(BaseModel):
 
     A curated collection of artworks.
     """
-    artworks: list[Painting | Artwork] = []
+    artworks: Painting | Artwork | list[Painting | Artwork] | None = None
 ```
 
 [testmark]:# (expected-__init__)

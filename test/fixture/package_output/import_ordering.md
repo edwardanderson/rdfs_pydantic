@@ -48,7 +48,7 @@ from ..ex2.Company import Company
 
 class Person(BaseModel):
     """<http://example1.org/Person>."""
-    employer: list[Company] = []
+    employer: Company | list[Company] | None = None
 ```
 
 [testmark]:# (expected-ex2-Company)
@@ -59,7 +59,7 @@ from ..ex1.Person import Person
 
 class Company(BaseModel):
     """<http://example2.org/Company>."""
-    employees: list[Person] = []
+    employees: Person | list[Person] | None = None
 ```
 
 [testmark]:# (expected-ex3-Employee)
@@ -70,5 +70,5 @@ from ..ex2.Company import Company
 
 class Employee(BaseModel):
     """<http://example3.org/Employee>."""
-    worksFor: list[Company] = []
+    worksFor: Company | list[Company] | None = None
 ```

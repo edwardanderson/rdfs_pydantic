@@ -5,27 +5,55 @@ from rdflib import Graph
 from pydantic import BaseModel
 from .extraction import extract_classes_and_properties
 from .utils import extract_prefix_and_local, topological_sort_classes
-from .codegen import generate_docstring, generate_class_definition, generate_property_line, generate_ellipsis_line
+from .codegen import (
+    generate_docstring,
+    generate_class_definition,
+    generate_class_iri_line,
+    generate_property_line,
+    generate_ellipsis_line,
+)
 
 
-def create_module(graph: Graph, context: dict | None = None, base_cls: type[BaseModel] | None = None, language: str = 'en') -> str:
+def create_module(graph: Graph, context: dict | None = None, base_cls: type[BaseModel] | None = None, language: str = 'en', emit_iris: bool = False) -> str:
     """Transform RDFS ontology from an RDF graph into Pydantic model code.
     
     Args:
         graph: RDFLib Graph object containing RDFS ontology
         context: Optional JSON-LD @context document providing aliases
-        base_cls: Base class type to inherit from (default: None, uses BaseModel)
-                 Pass a custom BaseModel subclass for specialized base models
+        base_cls: Base class type to inherit from (default: None, uses BaseModel).
+                 Pass a custom BaseModel subclass for specialized base models.
+                 When emit_iris=True, consider using IRIAwareBaseModel or defining
+                 a _class_iri ClassVar in your base class. See rdfs_pydantic.base
+                 for examples and the RDFSBaseModel protocol.
         language: Preferred language for labels and comments (default: 'en')
+        emit_iris: If True, emit class IRIs as ClassVar and property IRIs in Field metadata (default: False)
         
     Returns:
         Python code defining Pydantic models
     """
     classes = extract_classes_and_properties(graph, context, language)
     
-    # Import BaseModel
-    import_line = "from pydantic import BaseModel"
-    lines = ["from __future__ import annotations", import_line, "", ""]
+    # Check if any class has properties with IRIs or if any class has an IRI
+    has_property_iris = emit_iris and any(
+        any(prop.iri for prop in class_info.properties.values())
+        for class_info in classes.values()
+        if class_info.properties
+    )
+    has_class_iris = emit_iris and any(class_info.iri for class_info in classes.values())
+    
+    # Build imports based on what we need
+    # TODO: determine if we should only do this if no user `base_cls` is provided?
+    import_lines = ["from pydantic import BaseModel"]
+    if has_property_iris:
+        import_lines = ["from typing import ClassVar", "from pydantic import BaseModel, Field"]
+    elif has_class_iris:
+        import_lines = ["from typing import ClassVar", "from pydantic import BaseModel"]
+    
+    # Add base class import if a custom base class is provided
+    if base_cls is not None:
+        import_lines.append(f"from {base_cls.__module__} import {base_cls.__name__}")
+    
+    lines = ["from __future__ import annotations", *import_lines, "", ""]
     sorted_class_uris = topological_sort_classes(classes)
     
     # Group classes by their local name to detect duplicates needing namespace wrapping
@@ -60,13 +88,13 @@ def create_module(graph: Graph, context: dict | None = None, base_cls: type[Base
             
             if classes_in_prefix:
                 lines.append(f"class {prefix}:")
-                _emit_namespace_group(lines, classes_in_prefix, classes, prefix, processed_classes, class_name_map, base_cls)
+                _emit_namespace_group(lines, classes_in_prefix, classes, prefix, processed_classes, class_name_map, base_cls, emit_iris)
                 lines.append("")
         else:
             # Regular class without namespace wrapping
             if class_uri not in processed_classes:
                 processed_classes.add(class_uri)
-                _emit_single_class(lines, class_uri, classes, "", class_name_map, base_cls)
+                _emit_single_class(lines, class_uri, classes, "", class_name_map, base_cls, emit_iris)
     
     return "\n".join(lines).rstrip() + "\n"
 
@@ -99,7 +127,7 @@ def _identify_prefix_groups(local_name_to_uris: dict) -> dict:
 
 
 
-def _emit_namespace_group(lines: list, classes_in_prefix: list, classes: dict, prefix: str, processed_classes: Set, class_name_map: dict, base_cls: type[BaseModel] | None = None) -> None:
+def _emit_namespace_group(lines: list, classes_in_prefix: list, classes: dict, prefix: str, processed_classes: Set, class_name_map: dict, base_cls: type[BaseModel] | None = None, emit_iris: bool = False) -> None:
     """Emit a namespace group with all its nested classes.
     
     The classes_in_prefix list should already be in topological order.
@@ -125,17 +153,31 @@ def _emit_namespace_group(lines: list, classes_in_prefix: list, classes: dict, p
         if docstring:
             lines.append(docstring)
         
+        # Class IRI
+        if emit_iris and group_class_info.iri:
+            lines.append(generate_class_iri_line(group_class_info.iri, "        "))
+        
         # Properties or ellipsis
         if group_class_info.properties:
             for prop_name in sorted(group_class_info.properties):
                 prop = group_class_info.properties[prop_name]
-                lines.append(generate_property_line(prop.name, prop.type_annotation, "        "))
+                lines.append(
+                    generate_property_line(
+                        prop.name,
+                        prop.type_annotation,
+                        "        ",
+                        prop_iri_for_field=prop.iri if emit_iris else None,
+                        prop_iri_for_docstring=prop.iri,
+                        label=prop.label,
+                        comment=prop.comment,
+                    )
+                )
         else:
             lines.append(generate_ellipsis_line("        "))
         lines.append("")
 
 
-def _emit_single_class(lines: list, class_uri: str, classes: dict, indent: str, class_name_map: dict, base_cls: type[BaseModel] | None = None) -> None:
+def _emit_single_class(lines: list, class_uri: str, classes: dict, indent: str, class_name_map: dict, base_cls: type[BaseModel] | None = None, emit_iris: bool = False) -> None:
     """Emit a single class definition."""
     class_info = classes[class_uri]
     
@@ -156,11 +198,25 @@ def _emit_single_class(lines: list, class_uri: str, classes: dict, indent: str, 
     if docstring:
         lines.append(docstring)
     
+    # Class IRI
+    if emit_iris and class_info.iri:
+        lines.append(generate_class_iri_line(class_info.iri, indent + "    "))
+    
     # Properties or ellipsis
     if class_info.properties:
         for prop_name in sorted(class_info.properties):
             prop = class_info.properties[prop_name]
-            lines.append(generate_property_line(prop.name, prop.type_annotation, indent + "    "))
+            lines.append(
+                generate_property_line(
+                    prop.name,
+                    prop.type_annotation,
+                    indent + "    ",
+                    prop_iri_for_field=prop.iri if emit_iris else None,
+                    prop_iri_for_docstring=prop.iri,
+                    label=prop.label,
+                    comment=prop.comment,
+                )
+            )
     else:
         lines.append(generate_ellipsis_line(indent + "    "))
     lines.append("")
@@ -234,26 +290,52 @@ def _qualify_property_types(classes: dict, class_name_map: dict) -> None:
             prop_type = prop_info.type_annotation
             
             # Parse and replace class names in the type annotation
-            # Handle patterns like "list[ClassName]" or "list[Class1 | Class2]"
-            if "list[" in prop_type:
-                start = prop_type.find("[") + 1
-                end = prop_type.find("]")
-                if start > 0 and end > start:
-                    type_content = prop_type[start:end]
-                    # Split by | for union types
-                    type_parts = [t.strip() for t in type_content.split("|")]
+            # Handle new format: "Type | list[Type] | None" or primitives
+            if " | list[" in prop_type:
+                # Pattern: "Type | list[Type] | None"
+                # Split into parts: before " | list[", inside list, after "]"
+                list_start_idx = prop_type.find(" | list[")
+                if list_start_idx >= 0:
+                    # Extract parts
+                    before_list = prop_type[:list_start_idx]  # e.g., "Person"
+                    list_start_content_idx = list_start_idx + 8  # len(" | list[")
+                    list_end_idx = prop_type.rfind("]")  # Find closing ] before " | None"
+                    list_content = prop_type[list_start_content_idx:list_end_idx]  # e.g., "Person"
+                    after_list = prop_type[list_end_idx + 1:]  # e.g., " | None"
+                    
+                    # Qualify the before_list part
+                    qualified_before = _qualify_type_name(before_list, prop_info, classes, class_name_map)
+                    
+                    # Qualify list_content (which may contain union types)
+                    type_parts = [t.strip() for t in list_content.split("|")]
                     qualified_parts = []
                     for type_name in type_parts:
-                        # Find which URI this references by checking the ranges
                         resolved_name = type_name
                         for range_uri in getattr(prop_info, "ranges", []) or []:
                             range_uri_str = str(range_uri)
                             if range_uri_str in classes and classes[range_uri_str].name == type_name:
-                                # Found the matching class, use its qualified name
                                 resolved_name = class_name_map.get(range_uri_str, type_name)
                                 break
                         qualified_parts.append(resolved_name)
                     
-                    # Rebuild the type annotation
-                    qualified_content = " | ".join(qualified_parts)
-                    prop_info.type_annotation = f"list[{qualified_content}]"
+                    qualified_list_content = " | ".join(qualified_parts)
+                    prop_info.type_annotation = f"{qualified_before} | list[{qualified_list_content}]{after_list}"
+
+
+def _qualify_type_name(type_name: str, prop_info, classes: dict, class_name_map: dict) -> str:
+    """Qualify a single type name using the class_name_map.
+    
+    Args:
+        type_name: The type name to qualify
+        prop_info: The property info containing ranges
+        classes: Dict of class URIs to class info
+        class_name_map: Mapping of class URIs to qualified names
+        
+    Returns:
+        The qualified type name if found, otherwise the original type name
+    """
+    for range_uri in getattr(prop_info, "ranges", []) or []:
+        range_uri_str = str(range_uri)
+        if range_uri_str in classes and classes[range_uri_str].name == type_name:
+            return class_name_map.get(range_uri_str, type_name)
+    return type_name

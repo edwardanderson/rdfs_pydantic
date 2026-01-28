@@ -17,7 +17,11 @@ def create_package(graph: Graph, output_dir: str, context: dict | list | str | N
         graph: RDFLib Graph object containing RDFS ontology
         output_dir: Directory to write the package structure to
         context: Optional JSON-LD @context document providing aliases (dict, list, or URL string to download)
-        base_cls: Base class type to inherit from (default: None, uses BaseModel)
+        base_cls: Base class type to inherit from (default: None, uses BaseModel).
+                 Pass a custom BaseModel subclass for specialized base models.
+                 Consider using IRIAwareBaseModel or defining a _class_iri ClassVar
+                 in your base class. See rdfs_pydantic.base for examples and the
+                 RDFSBaseModel protocol.
         language: Preferred language for labels and comments (default: 'en')
     """
     classes = extract_classes_and_properties(graph, context, language)
@@ -224,7 +228,13 @@ def _write_class_file(local: str, class_uri: str, prefix: str, class_list: list[
     if properties:
         for prop_name in sorted(properties):
             prop = properties[prop_name]
-            lines.append(generate_property_line(prop.name, prop.type_annotation))
+            lines.append(generate_property_line(
+                prop.name, 
+                prop.type_annotation,
+                prop_iri_for_docstring=prop.iri,
+                label=prop.label, 
+                comment=prop.comment
+            ))
     else:
         lines.append(generate_ellipsis_line())
     lines.append("")
