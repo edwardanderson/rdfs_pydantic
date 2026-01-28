@@ -21,6 +21,7 @@ Here's an example RDFS ontology using simple artist and artwork classes.
 
 ```turtle
 @prefix ex: <http://example.org/> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 
 ex:Agent a rdfs:Class ;
@@ -80,7 +81,7 @@ class Agent(BaseModel):
 
     A person or organisation.
     """
-    name: str | None = None
+    name: str | list[str] | None = None
 
 
 class Artist(Agent):
@@ -88,7 +89,7 @@ class Artist(Agent):
 
     A creator of artworks.
     """
-    created: list[Painting] = []
+    created: Painting | list[Painting] | None = None
 
 
 class Artwork(BaseModel):
@@ -96,12 +97,7 @@ class Artwork(BaseModel):
 
     An artistic creation.
     """
-    artist: list[Artist] = []
-
-
-class Painting(Artwork):
-    """<http://example.org/Painting>."""
-    ...
+    artist: Artist | list[Artist] | None = None
 
 
 class Exhibition(BaseModel):
@@ -109,7 +105,12 @@ class Exhibition(BaseModel):
 
     A curated collection of artworks.
     """
-    artworks: list[Painting | Artwork] = []
+    artworks: Painting | Artwork | list[Painting | Artwork] | None = None
+
+
+class Painting(Artwork):
+    """<http://example.org/Painting>."""
+    ...
 ```
 
 ## Module & Package Generation
