@@ -24,10 +24,10 @@ from pydantic import BaseModel
 
 class E1(BaseModel):
     """<http://example.org/E1>."""
-    p1: list[E1] = []
+    p1: E1 | list[E1] | None = None
 
 
 class E2(E1):
     """<http://example.org/E2>."""
-    p2: list[E2] = []
+    p2: E2 | list[E2] | None = None
 ```

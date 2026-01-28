@@ -36,7 +36,7 @@ if TYPE_CHECKING:
 
 class Person(BaseModel):
     """<http://example1.org/Person>."""
-    drives: list[Car] = []
+    drives: Car | list[Car] | None = None
 ```
 
 [testmark]:# (expected-ex2-Car)

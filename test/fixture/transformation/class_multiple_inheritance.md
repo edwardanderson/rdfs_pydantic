@@ -31,15 +31,15 @@ from pydantic import BaseModel
 
 class E1(BaseModel):
     """<http://example.org/E1>."""
-    p1: list[E1] = []
+    p1: E1 | list[E1] | None = None
 
 
 class E2(BaseModel):
     """<http://example.org/E2>."""
-    p2: list[E2] = []
+    p2: E2 | list[E2] | None = None
 
 
 class E3(E1, E2):
     """<http://example.org/E3>."""
-    p3: list[E3] = []
+    p3: E3 | list[E3] | None = None
 ```

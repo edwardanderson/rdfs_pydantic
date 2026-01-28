@@ -25,5 +25,5 @@ class Email(BaseModel):
 
 class Person(BaseModel):
     """<http://example.org/Person>."""
-    contact: list[Email | str | int] = []
+    contact: Email | str | int | list[Email | str | int] | None = None
 ```

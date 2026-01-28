@@ -37,7 +37,7 @@ from pydantic import BaseModel
 
 class Person(BaseModel):
     """<http://example1.org/Person>."""
-    knows: list[Person] = []
+    knows: Person | list[Person] | None = None
 ```
 
 [testmark]:# (expected-ex2-Person)
@@ -47,7 +47,7 @@ from pydantic import BaseModel
 
 class Person(BaseModel):
     """<http://example2.org/Person>."""
-    friendOf: list[Person] = []
+    friendOf: Person | list[Person] | None = None
 ```
 
 [testmark]:# (expected-ex1-__init__)

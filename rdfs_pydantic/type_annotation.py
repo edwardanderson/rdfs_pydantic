@@ -34,21 +34,24 @@ def get_property_type(range_uri, naming_strategy: NamingStrategy | None = None) 
         naming_strategy = DefaultNamingStrategy()
         
     if not range_uri:
-        return "str | None"
+        return "str | list[str] | None"
 
     range_str = str(range_uri)
 
     # Check if it's a known primitive datatype
     if range_str in PRIMITIVE_DATATYPES:
-        return PRIMITIVE_DATATYPES[range_str]
+        prim_type = PRIMITIVE_DATATYPES[range_str]
+        return f"{prim_type} | list[{prim_type}] | None"
 
     # Check if it's a Literal
+    # TODO: this seems like weak logic.
+    # Maybe a class will be called 'http://example.org/ExampleLiteral'?
     if "Literal" in range_str:
-        return "str"
+        return "str | list[str] | None"
 
     # Otherwise it's a class reference
     class_name = naming_strategy.get_local_name(range_str)
-    return f"list[{class_name}]"
+    return f"{class_name} | list[{class_name}] | None"
 
 
 def get_union_property_type(range_uris: list, naming_strategy: NamingStrategy | None = None) -> str:
@@ -65,7 +68,7 @@ def get_union_property_type(range_uris: list, naming_strategy: NamingStrategy | 
         naming_strategy = DefaultNamingStrategy()
         
     if not range_uris:
-        return "str | None"
+        return "str | list[str] | None"
 
     # Extract type names from all ranges
     type_names = []
@@ -98,5 +101,5 @@ def get_union_property_type(range_uris: list, naming_strategy: NamingStrategy | 
     else:
         union_types = " | ".join(type_names)
     
-    return f"list[{union_types}]"
+    return f"{union_types} | list[{union_types}] | None"
 
