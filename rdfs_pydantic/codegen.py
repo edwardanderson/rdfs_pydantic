@@ -137,6 +137,8 @@ def generate_property_line(
             lines.append(f'{indent}"""')
         else:
             lines.append(f'{docstring_first}"""')
+        # Add blank line after docstring for readability between properties
+        lines.append('')
     
     return '\n'.join(lines)
 

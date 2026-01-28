@@ -64,6 +64,7 @@ class E1(BaseModel):
 
     Comment about the property p1.
     """
+
     p2: E1 | list[E1] | None = None
     """Label for the property p2 <http://example.org/p2>.
 
