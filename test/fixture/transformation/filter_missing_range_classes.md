@@ -5,12 +5,10 @@
 
 <http://example.org/E1> a rdfs:Class .
 
-# Property with missing class in range should be ignored
 <http://example.org/p_missing> a rdf:Property ;
     rdfs:domain <http://example.org/E1> ;
     rdfs:range <http://example.org/MissingClass> .
 
-# Valid property should remain
 <http://example.org/p_valid> a rdf:Property ;
     rdfs:domain <http://example.org/E1> ;
     rdfs:range <http://example.org/E1> .
@@ -24,5 +22,14 @@ from pydantic import BaseModel
 
 class E1(BaseModel):
     """<http://example.org/E1>."""
+    p_missing: MissingClass | list[MissingClass] | None = None
     p_valid: E1 | list[E1] | None = None
+
+
+class MissingClass(BaseModel):
+    """MissingClass <http://example.org/MissingClass>.
+
+    External class referenced but not defined in this ontology.
+    """
+    ...
 ```

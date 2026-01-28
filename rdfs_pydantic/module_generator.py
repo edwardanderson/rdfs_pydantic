@@ -4,6 +4,7 @@ from typing import Set
 from rdflib import Graph
 from pydantic import BaseModel
 from .extraction import extract_classes_and_properties
+from .models import ClassInfo
 from .utils import extract_prefix_and_local, topological_sort_classes
 from .codegen import (
     generate_docstring,
@@ -31,7 +32,7 @@ def create_module(graph: Graph, context: dict | None = None, base_cls: type[Base
     Returns:
         Python code defining Pydantic models
     """
-    classes = extract_classes_and_properties(graph, context, language)
+    classes, external_classes = extract_classes_and_properties(graph, context, language)
     
     # Check if any class has properties with IRIs or if any class has an IRI
     has_property_iris = emit_iris and any(
@@ -95,6 +96,10 @@ def create_module(graph: Graph, context: dict | None = None, base_cls: type[Base
             if class_uri not in processed_classes:
                 processed_classes.add(class_uri)
                 _emit_single_class(lines, class_uri, classes, "", class_name_map, base_cls, emit_iris)
+    
+    # Generate stub classes for external references
+    if external_classes:
+        _emit_external_class_stubs(lines, external_classes, graph, base_cls, emit_iris)
     
     return "\n".join(lines).rstrip() + "\n"
 
@@ -339,3 +344,68 @@ def _qualify_type_name(type_name: str, prop_info, classes: dict, class_name_map:
         if range_uri_str in classes and classes[range_uri_str].name == type_name:
             return class_name_map.get(range_uri_str, type_name)
     return type_name
+
+
+def _emit_external_class_stubs(lines: list, external_classes: dict[str, ClassInfo], graph: Graph, base_cls: type[BaseModel] | None = None, emit_iris: bool = False) -> None:
+    """Generate stub classes for external class references.
+    
+    Args:
+        lines: List of code lines to append to
+        external_classes: Dict mapping external class URIs to ClassInfo objects with properties
+        graph: RDF graph (for namespace resolution)
+        base_cls: Base class to inherit from
+        emit_iris: Whether to emit IRI metadata
+    """
+    from .naming import DefaultNamingStrategy
+    
+    naming_strategy = DefaultNamingStrategy()
+    
+    # Sort external classes by name for deterministic output
+    sorted_externals = sorted(external_classes.keys(), key=lambda uri: naming_strategy.get_local_name(uri))
+    
+    for external_uri in sorted_externals:
+        class_info = external_classes[external_uri]
+        class_name = class_info.name
+        
+        # Determine base class
+        base_class_name = base_cls.__name__ if base_cls else "BaseModel"
+        
+        # Generate class definition
+        lines.append(f"class {class_name}({base_class_name}):")
+        
+        # Generate docstring
+        lines.append(f'    """{class_name} <{external_uri}>.')
+        lines.append("")
+        lines.append('    External class referenced but not defined in this ontology.')
+        lines.append('    """')
+        
+        # Add IRI metadata if needed
+        if emit_iris:
+            lines.append(f'    _class_iri: ClassVar[str] = "{external_uri}"')
+        
+        # Add properties if they exist
+        if class_info.properties:
+            for prop_name, prop_info in class_info.properties.items():
+                # Format property field - type_annotation already includes | list[...] | None
+                if emit_iris and prop_info.iri:
+                    lines.append(f"    {prop_name}: {prop_info.type_annotation} = Field(default=None, json_schema_extra={{\"_property_iri\": \"{prop_info.iri}\"}})")
+                else:
+                    lines.append(f"    {prop_name}: {prop_info.type_annotation} = None")
+                
+                # Add property docstring if available
+                if prop_info.label or prop_info.comment:
+                    label_part = f"{prop_info.label} <{prop_info.iri}>" if prop_info.label and prop_info.iri else (prop_info.label or "")
+                    lines.append(f'    """{label_part}.')
+                    if prop_info.comment:
+                        lines.append("")
+                        lines.append(f"    {prop_info.comment}")
+                    lines.append('    """')
+                    lines.append("")
+        else:
+            # Add ellipsis only if no properties and not emitting IRIs
+            if not emit_iris:
+                lines.append("    ...")
+        
+        # Add ending blank lines to match normal class formatting
+        lines.append("")
+        lines.append("")

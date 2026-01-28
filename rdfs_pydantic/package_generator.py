@@ -24,7 +24,7 @@ def create_package(graph: Graph, output_dir: str, context: dict | list | str | N
                  RDFSBaseModel protocol.
         language: Preferred language for labels and comments (default: 'en')
     """
-    classes = extract_classes_and_properties(graph, context, language)
+    classes, external_classes = extract_classes_and_properties(graph, context, language)
     sorted_class_uris = topological_sort_classes(classes)
     
     # Ensure output directory exists

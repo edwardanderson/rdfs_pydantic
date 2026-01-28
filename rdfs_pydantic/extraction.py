@@ -125,7 +125,7 @@ def _get_language_value(graph: Graph, subject, predicate, language: str = 'en'):
     return values[0]
 
 
-def extract_classes_and_properties(graph: Graph, context: dict | list | str | None = None, language: str = 'en') -> dict[str, ClassInfo]:
+def extract_classes_and_properties(graph: Graph, context: dict | list | str | None = None, language: str = 'en') -> tuple[dict[str, ClassInfo], set[str]]:
     """Extract classes and their properties from an RDF graph, applying JSON-LD context aliases.
     
     Args:
@@ -134,7 +134,9 @@ def extract_classes_and_properties(graph: Graph, context: dict | list | str | No
         language: Preferred language for labels and comments (default: 'en')
         
     Returns:
-        Dict mapping class URIs to ClassInfo dataclass instances
+        Tuple of (classes dict, external_classes dict):
+        - classes: Dict mapping class URIs to ClassInfo dataclass instances
+        - external_classes: Dict mapping external class URIs to ClassInfo instances with properties
         
     Raises:
         ValueError: If any rdfs:Class or rdf:Property instance lacks a bound prefix
@@ -144,9 +146,10 @@ def extract_classes_and_properties(graph: Graph, context: dict | list | str | No
     alias_map = _build_alias_map(contexts)
     naming_strategy = ContextAwareNamingStrategy(alias_map) if alias_map else DefaultNamingStrategy()
     classes: dict[str, ClassInfo] = {}
+    external_classes: dict[str, ClassInfo] = {}
     _extract_classes(graph, classes, naming_strategy, language)
-    _extract_properties(graph, classes, naming_strategy, language)
-    return classes
+    _extract_properties(graph, classes, naming_strategy, language, external_classes)
+    return classes, external_classes
 
 
 def _extract_classes(graph: Graph, classes: dict[str, ClassInfo], naming_strategy: NamingStrategy, language: str = 'en') -> None:
@@ -179,9 +182,20 @@ def _extract_classes(graph: Graph, classes: dict[str, ClassInfo], naming_strateg
             )
 
 
-def _extract_properties(graph: Graph, classes: dict[str, ClassInfo], naming_strategy: NamingStrategy, language: str = 'en') -> None:
-    """Extract property definitions and attach to classes."""
+def _extract_properties(graph: Graph, classes: dict[str, ClassInfo], naming_strategy: NamingStrategy, language: str = 'en', external_classes: dict[str, ClassInfo] | None = None) -> None:
+    """Extract property definitions and attach to classes.
+    
+    Args:
+        graph: RDF graph to extract from
+        classes: Dictionary of extracted classes to populate
+        naming_strategy: Strategy for generating names
+        language: Preferred language for labels and comments
+        external_classes: Dict to populate with external class URIs and their properties (modified in place)
+    """
     from .type_annotation import get_property_type, get_union_property_type
+    
+    if external_classes is None:
+        external_classes = {}
     
     prop_subjects = set(graph.subjects(RDF.type, RDF.Property))
     for prop in prop_subjects:
@@ -193,17 +207,37 @@ def _extract_properties(graph: Graph, classes: dict[str, ClassInfo], naming_stra
             continue
         prop_name = naming_strategy.get_local_name(str(prop))
         
-        # Filter ranges to only include classes that exist in our extracted classes
-        # or primitive datatypes. This prevents references to classes that aren't in the ontology version being used
+        # Filter ranges to only include classes that exist in our extracted classes,
+        # primitive datatypes, or track as external classes
         valid_ranges = []
         for range_val in ranges:
             range_str = str(range_val)
-            # Check if it's a literal/datatype
-            is_literal = "Literal" in range_str or "XMLSchema" in range_str or range_str.startswith("http://www.w3.org/")
+            # Check if it's a literal/datatype (be specific to avoid catching owl:Thing)
+            is_literal = (
+                "Literal" in range_str or 
+                "XMLSchema" in range_str or 
+                range_str.startswith("http://www.w3.org/2001/XMLSchema#") or
+                range_str == "http://www.w3.org/2000/01/rdf-schema#Literal"
+            )
             # Check if it's in our extracted classes
             is_known_class = range_str in classes
             
             if is_literal or is_known_class:
+                valid_ranges.append(range_val)
+            else:
+                # This is an external class reference - track it and include it
+                range_str_uri = str(range_val)
+                if range_str_uri not in external_classes:
+                    external_classes[range_str_uri] = ClassInfo(
+                        iri=range_str_uri,
+                        name=naming_strategy.get_local_name(range_str_uri),
+                        label=None,
+                        comment=None,
+                        parent_uris=[],
+                        properties={},
+                        uri=range_str_uri,
+                        graph=graph,
+                    )
                 valid_ranges.append(range_val)
         
         if not valid_ranges:
@@ -213,9 +247,33 @@ def _extract_properties(graph: Graph, classes: dict[str, ClassInfo], naming_stra
             prop_type = get_property_type(valid_ranges[0], naming_strategy)
         else:
             prop_type = get_union_property_type(valid_ranges, naming_strategy)
+        
+        # Add property to all domain classes (both internal and external)
         for domain in domains:
-            if str(domain) in classes:
-                classes[str(domain)].properties[prop_name] = PropertyInfo(
+            domain_str = str(domain)
+            if domain_str in classes:
+                classes[domain_str].properties[prop_name] = PropertyInfo(
+                    name=prop_name,
+                    type_annotation=prop_type,
+                    label=str(label) if label else None,
+                    comment=str(comment) if comment else None,
+                    ranges=valid_ranges,
+                    iri=str(prop) if isinstance(prop, URIRefType) else str(prop),
+                )
+            elif domain_str not in classes:
+                # Domain is an external class - create/update external class entry
+                if domain_str not in external_classes:
+                    external_classes[domain_str] = ClassInfo(
+                        iri=domain_str,
+                        name=naming_strategy.get_local_name(domain_str),
+                        label=None,
+                        comment=None,
+                        parent_uris=[],
+                        properties={},
+                        uri=domain_str,
+                        graph=graph,
+                    )
+                external_classes[domain_str].properties[prop_name] = PropertyInfo(
                     name=prop_name,
                     type_annotation=prop_type,
                     label=str(label) if label else None,
