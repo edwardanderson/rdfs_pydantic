@@ -156,11 +156,11 @@ def generate_ellipsis_line(indent: str = "    ") -> str:
 
 
 def generate_model_config(indent: str = "    ", exclude_empty_defaults: bool = True) -> list[str]:
-    """Generate Pydantic model_config lines for serialization optimization.
+    """Generate Pydantic model_config lines for serialisation optimization.
     
     Args:
         indent: Indentation string
-        exclude_empty_defaults: Whether to exclude None/empty values from serialization
+        exclude_empty_defaults: Whether to exclude None/empty values from serialisation
         
     Returns:
         List of code lines defining model_config

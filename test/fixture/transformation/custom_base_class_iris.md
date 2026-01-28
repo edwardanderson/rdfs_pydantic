@@ -1,6 +1,6 @@
 # Custom Base Class Using Stored IRIs
 
-Test fixture demonstrating how custom base classes can access stored IRIs to expose them in serialization.
+Test fixture demonstrating how custom base classes can access stored IRIs to expose them in serialisation.
 
 [testmark]:# (arrange-ontology-custom-base)
 ```turtle
@@ -63,7 +63,7 @@ schema:knows a rdf:Property ;
     rdfs:range schema:Person .
 ```
 
-[testmark]:# (expected-type-exposure-serialization)
+[testmark]:# (expected-type-exposure-serialisation)
 ```python
 from __future__ import annotations
 from typing import ClassVar, Any
