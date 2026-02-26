@@ -131,7 +131,7 @@ def _get_language_value(graph: Graph, subject, predicate, language: str = 'en'):
     return values[0]
 
 
-def extract_classes_and_properties(graph: Graph, context: dict | list | str | None = None, language: str = 'en') -> tuple[dict[str, ClassInfo], set[str]]:
+def extract_classes_and_properties(graph: Graph, context: dict | list | str | None = None, language: str = 'en') -> tuple[dict[str, ClassInfo], dict[str, ClassInfo]]:
     """Extract classes and their properties from an RDF graph, applying JSON-LD context aliases.
     
     Args:
@@ -241,7 +241,7 @@ def _extract_properties(graph: Graph, classes: dict[str, ClassInfo], naming_stra
                         comment=None,
                         parent_uris=[],
                         properties={},
-                        uri=range_str_uri,
+                        uri=URIRefType(range_str_uri),
                         graph=graph,
                     )
                 valid_ranges.append(range_val)
@@ -276,7 +276,7 @@ def _extract_properties(graph: Graph, classes: dict[str, ClassInfo], naming_stra
                         comment=None,
                         parent_uris=[],
                         properties={},
-                        uri=domain_str,
+                        uri=URIRefType(domain_str),
                         graph=graph,
                     )
                 external_classes[domain_str].properties[prop_name] = PropertyInfo(

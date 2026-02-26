@@ -3,10 +3,12 @@
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 
 ex:Agent a rdfs:Class ;
+    rdfs:label "Agent" ;
     rdfs:comment "A person or organisation" .
 
 ex:Artist a rdfs:Class ;
     rdfs:subClassOf ex:Agent ;
+    rdfs:label "Artist" ;
     rdfs:comment "A creator of artworks" .
 
 ex:Artwork a rdfs:Class ;
@@ -19,6 +21,8 @@ ex:Exhibition a rdfs:Class ;
     rdfs:comment "A curated collection of artworks" .
 
 ex:name a rdf:Property ;
+    rdfs:label "Name" ;
+    rdfs:comment "The name of the resource" ;
     rdfs:domain ex:Agent ;
     rdfs:range rdfs:Literal .
 
