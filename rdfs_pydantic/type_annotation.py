@@ -28,30 +28,30 @@ def get_property_type(range_uri, naming_strategy: NamingStrategy | None = None) 
         naming_strategy: Optional naming strategy for extracting class names
         
     Returns:
-        Python type annotation string
+        Python type annotation string as a list type (e.g., list[str] or list[ClassName])
     """
     if naming_strategy is None:
         naming_strategy = DefaultNamingStrategy()
         
     if not range_uri:
-        return "str | list[str] | None"
+        return "list[str]"
 
     range_str = str(range_uri)
 
     # Check if it's a known primitive datatype
     if range_str in PRIMITIVE_DATATYPES:
         prim_type = PRIMITIVE_DATATYPES[range_str]
-        return f"{prim_type} | list[{prim_type}] | None"
+        return f"list[{prim_type}]"
 
     # Check if it's a Literal
     # TODO: this seems like weak logic.
     # Maybe a class will be called 'http://example.org/ExampleLiteral'?
     if "Literal" in range_str:
-        return "str | list[str] | None"
+        return "list[str]"
 
     # Otherwise it's a class reference
     class_name = naming_strategy.get_local_name(range_str)
-    return f"{class_name} | list[{class_name}] | None"
+    return f"list[{class_name}]"
 
 
 def get_union_property_type(range_uris: list, naming_strategy: NamingStrategy | None = None) -> str:
@@ -62,13 +62,13 @@ def get_union_property_type(range_uris: list, naming_strategy: NamingStrategy | 
         naming_strategy: Optional naming strategy for extracting class names
         
     Returns:
-        Python type annotation string with union types
+        Python type annotation string as a list type (e.g., list[Type1 | Type2])
     """
     if naming_strategy is None:
         naming_strategy = DefaultNamingStrategy()
         
     if not range_uris:
-        return "str | list[str] | None"
+        return "list[str]"
 
     # Extract type names from all ranges
     type_names = []
@@ -101,5 +101,5 @@ def get_union_property_type(range_uris: list, naming_strategy: NamingStrategy | 
     else:
         union_types = " | ".join(type_names)
     
-    return f"{union_types} | list[{union_types}] | None"
+    return f"list[{union_types}]"
 

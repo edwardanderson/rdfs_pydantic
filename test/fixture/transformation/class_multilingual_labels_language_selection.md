@@ -176,12 +176,12 @@ fr
 [testmark]:# (expected-5)
 ```python
 from __future__ import annotations
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class E1(BaseModel):
     """Entité <http://example.org/E1>."""
-    P1_has_name: str | list[str] | None = None
+    P1_has_name: list[str] = Field(default_factory=list)
     """a pour nom <http://example.org/P1_has_name>."""
 ```
 

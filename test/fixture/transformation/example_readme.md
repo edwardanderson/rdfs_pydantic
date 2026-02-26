@@ -40,7 +40,7 @@ ex:artworks a rdf:Property ;
 [testmark]:# (expected-0)
 ```python
 from __future__ import annotations
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class Agent(BaseModel):
@@ -48,7 +48,7 @@ class Agent(BaseModel):
 
     A person or organisation.
     """
-    name: str | list[str] | None = None
+    name: list[str] = Field(default_factory=list)
 
 
 class Artist(Agent):
@@ -56,7 +56,7 @@ class Artist(Agent):
 
     A creator of artworks.
     """
-    created: Painting | list[Painting] | None = None
+    created: list[Painting] = Field(default_factory=list)
 
 
 class Artwork(BaseModel):
@@ -64,7 +64,7 @@ class Artwork(BaseModel):
 
     An artistic creation.
     """
-    artist: Artist | list[Artist] | None = None
+    artist: list[Artist] = Field(default_factory=list)
 
 
 class Exhibition(BaseModel):
@@ -72,7 +72,7 @@ class Exhibition(BaseModel):
 
     A curated collection of artworks.
     """
-    artworks: Painting | Artwork | list[Painting | Artwork] | None = None
+    artworks: list[Painting | Artwork] = Field(default_factory=list)
 
 
 class Painting(Artwork):

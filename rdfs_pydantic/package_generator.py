@@ -228,13 +228,29 @@ def _write_class_file(local: str, class_uri: str, prefix: str, class_list: list[
     if properties:
         for prop_name in sorted(properties):
             prop = properties[prop_name]
-            lines.append(generate_property_line(
-                prop.name, 
-                prop.type_annotation,
-                prop_iri_for_docstring=prop.iri,
-                label=prop.label, 
-                comment=prop.comment
-            ))
+            package_prop_type = _to_package_property_type(prop.type_annotation)
+            lines.append(f"    {prop.name}: {package_prop_type} = None")
+
+            if prop.label or prop.comment:
+                docstring_first = '    """'
+                if prop.label:
+                    docstring_first += f"{prop.label}"
+                if prop.iri:
+                    if prop.label:
+                        docstring_first += " "
+                    docstring_first += f"<{prop.iri}>."
+
+                if prop.comment:
+                    lines.append(docstring_first)
+                    lines.append("")
+                    for line in str(prop.comment).splitlines():
+                        comment_line = line.rstrip()
+                        if comment_line and not comment_line[-1] in '.!?。！？':
+                            comment_line += '.'
+                        lines.append(f"    {comment_line}")
+                    lines.append('    """')
+                else:
+                    lines.append(f'{docstring_first}"""')
     else:
         lines.append(generate_ellipsis_line())
     lines.append("")
@@ -417,3 +433,14 @@ def _write_class_stub_file(local: str, class_name: str, parent_names: list[str] 
     
     with open(os.path.join(folder, f"{local}.pyi"), "w", encoding="utf-8") as f:
         f.write("\n".join(lines).rstrip() + "\n")
+
+
+def _to_package_property_type(prop_type: str) -> str:
+    """Convert internal list-only property type to package constructor-friendly union.
+
+    Example: list[Person] -> Person | list[Person] | None
+    """
+    if prop_type.startswith("list[") and prop_type.endswith("]"):
+        inner = prop_type[len("list["):-1].strip()
+        return f"{inner} | list[{inner}] | None"
+    return prop_type

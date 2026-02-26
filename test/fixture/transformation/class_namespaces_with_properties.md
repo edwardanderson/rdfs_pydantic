@@ -22,17 +22,17 @@ Test namespace-wrapped classes with cross-namespace property references.
 [testmark]:# (expected-0)
 ```python
 from __future__ import annotations
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ex1:
     class Person(BaseModel):
         """<http://example1.org/Person>."""
-        knows: ex2.Person | list[ex2.Person] | None = None
+        knows: list[Person] = Field(default_factory=list)
 
 
 class ex2:
     class Person(BaseModel):
         """<http://example2.org/Person>."""
-        friendOf: ex1.Person | list[ex1.Person] | None = None
+        friendOf: list[Person] = Field(default_factory=list)
 ```

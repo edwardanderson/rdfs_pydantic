@@ -15,7 +15,7 @@
 [testmark]:# (expected-0)
 ```python
 from __future__ import annotations
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class Email(BaseModel):
@@ -25,5 +25,5 @@ class Email(BaseModel):
 
 class Person(BaseModel):
     """<http://example.org/Person>."""
-    contact: Email | str | int | list[Email | str | int] | None = None
+    contact: list[Email | str | int] = Field(default_factory=list)
 ```

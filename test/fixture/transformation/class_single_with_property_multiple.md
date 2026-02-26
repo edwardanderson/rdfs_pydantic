@@ -16,11 +16,11 @@
 [testmark]:# (expected-0)
 ```python
 from __future__ import annotations
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class E1(BaseModel):
     """<http://example.org/E1>."""
-    p1: E1 | list[E1] | None = None
-    p2: E1 | list[E1] | None = None
+    p1: list[E1] = Field(default_factory=list)
+    p2: list[E1] = Field(default_factory=list)
 ```

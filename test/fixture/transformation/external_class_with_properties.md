@@ -34,18 +34,18 @@ ex:relatedTo a rdf:Property ;
 [testmark]:# (expected-0)
 ```python
 from __future__ import annotations
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class Person(BaseModel):
     """Person <http://example.org/Person>."""
-    name: str | list[str] | None = None
+    name: list[str] = Field(default_factory=list)
     """name <http://example.org/name>.
 
     A person's name.
     """
 
-    relatedTo: Thing | list[Thing] | None = None
+    relatedTo: list[Thing] = Field(default_factory=list)
 
 
 class Thing(BaseModel):
@@ -53,7 +53,7 @@ class Thing(BaseModel):
 
     External class referenced but not defined in this ontology.
     """
-    label: str | list[str] | None = None
+    label: list[str] = Field(default_factory=list)
     """label <http://example.org/label>.
 
     A label for any thing.

@@ -35,5 +35,5 @@ class _123Name(BaseModel):
 
 class class_(BaseModel):
     """<http://example.org/class>."""
-    for_: str | list[str] | None = None
+    for_: list[str] = Field(default_factory=list)
 ```

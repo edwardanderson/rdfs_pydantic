@@ -90,7 +90,7 @@ def generate_property_line(
     
     Args:
         prop_name: Name of the property
-        prop_type: Type annotation for the property (e.g., "str | list[str] | None")
+        prop_type: Type annotation for the property (e.g., "list[str]" or "list[Type1 | Type2]")
         indent: Indentation string
         prop_iri_for_field: Optional IRI for the property (used in Field json_schema_extra)
         prop_iri_for_docstring: Optional IRI for the property (used in docstring)
@@ -102,17 +102,12 @@ def generate_property_line(
     """
     lines = []
     
-    # Build the base field call if we have a property IRI for field metadata
+    # All properties are now list types with default_factory=list
     if prop_iri_for_field:
         json_schema_extra = f'{{"_property_iri": "{prop_iri_for_field}"}}'
-        # Type already includes | None, so use it directly
-        lines.append(f"{indent}{prop_name}: {prop_type} = Field(default=None, json_schema_extra={json_schema_extra})")
+        lines.append(f"{indent}{prop_name}: {prop_type} = Field(default_factory=list, json_schema_extra={json_schema_extra})")
     else:
-        # Original behavior without IRI: type already includes | None, so just use it
-        if prop_type.startswith("list["):
-            lines.append(f"{indent}{prop_name}: {prop_type} = []")
-        else:
-            lines.append(f"{indent}{prop_name}: {prop_type} = None")
+        lines.append(f"{indent}{prop_name}: {prop_type} = Field(default_factory=list)")
     
     # Add docstring if label or comment provided
     if label or comment:
