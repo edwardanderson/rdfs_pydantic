@@ -3,7 +3,7 @@
 Create [Pydantic](https://docs.pydantic.dev/latest/) models from [RDFS](https://www.w3.org/TR/rdf-schema/) ontologies.
 
 > [!CAUTION]
-> Experimental
+> This is a test-driven-development project, with handwritten test fixtures and an LLM-generated implementation.
 
 ## Features
 
