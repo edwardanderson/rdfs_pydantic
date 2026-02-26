@@ -102,7 +102,6 @@ def generate_property_line(
     """
     lines = []
     
-    # All properties are now list types with default_factory=list
     if prop_iri_for_field:
         json_schema_extra = f'{{"_property_iri": "{prop_iri_for_field}"}}'
         lines.append(f"{indent}{prop_name}: {prop_type} = Field(default_factory=list, json_schema_extra={json_schema_extra})")
