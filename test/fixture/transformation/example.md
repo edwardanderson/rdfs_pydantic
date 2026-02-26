@@ -17,7 +17,7 @@
 [testmark]:# (expected-0)
 ```python
 from __future__ import annotations
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class Example(BaseModel):
@@ -25,6 +25,9 @@ class Example(BaseModel):
 
     Example comment.
     """
-    seeAlso: Example | list[Example] | None = None
-    value: str | list[str] | None = None
+    seeAlso: list[Example] = Field(default_factory=list)
+    """<http://example.org/seeAlso>."""
+
+    value: list[str] = Field(default_factory=list)
+    """<http://example.org/value>."""
 ```

@@ -95,10 +95,11 @@ class Entity(BaseModel):
 [testmark]:# (expected-2)
 ```python
 from __future__ import annotations
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class Entity(BaseModel):
     """<http://example.org/E1>."""
-    property1: Entity | list[Entity] | None = None
+    property1: list[Entity] = Field(default_factory=list)
+    """<http://example.org/p1>."""
 ```

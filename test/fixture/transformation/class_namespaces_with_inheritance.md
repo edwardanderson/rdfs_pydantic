@@ -19,13 +19,14 @@ Test namespace-wrapped classes with cross-namespace inheritance.
 [testmark]:# (expected-0)
 ```python
 from __future__ import annotations
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ex1:
     class Entity(BaseModel):
         """<http://example1.org/Entity>."""
-        prop: str | list[str] | None = None
+        prop: list[str] = Field(default_factory=list)
+        """<http://example1.org/prop>."""
 
 
 class ex2:

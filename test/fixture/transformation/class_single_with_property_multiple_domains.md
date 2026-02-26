@@ -17,7 +17,7 @@ ex:homepage a rdf:Property ;
 [testmark]:# (expected-0)
 ```python
 from __future__ import annotations
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class Artist(BaseModel):
@@ -25,7 +25,8 @@ class Artist(BaseModel):
 
     A person who creates art.
     """
-    homepage: str | list[str] | None = None
+    homepage: list[str] = Field(default_factory=list)
+    """<http://example.org/homepage>."""
 
 
 class Exhibition(BaseModel):
@@ -33,5 +34,6 @@ class Exhibition(BaseModel):
 
     A public display of artworks.
     """
-    homepage: str | list[str] | None = None
+    homepage: list[str] = Field(default_factory=list)
+    """<http://example.org/homepage>."""
 ```

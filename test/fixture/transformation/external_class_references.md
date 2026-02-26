@@ -29,7 +29,7 @@ foaf:made a rdf:Property ;
 [testmark]:# (expected-0)
 ```python
 from __future__ import annotations
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class Agent(BaseModel):
@@ -37,13 +37,13 @@ class Agent(BaseModel):
 
     An agent (eg. person, group, software or physical artifact).
     """
-    made: Thing | list[Thing] | None = None
+    made: list[Thing] = Field(default_factory=list)
     """made <http://xmlns.com/foaf/0.1/made>.
 
     Something that was made by this agent.
     """
 
-    mbox: Thing | list[Thing] | None = None
+    mbox: list[Thing] = Field(default_factory=list)
     """personal mailbox <http://xmlns.com/foaf/0.1/mbox>.
 
     A personal mailbox, ie. an Internet mailbox associated with exactly one owner.
@@ -94,7 +94,7 @@ from pydantic import BaseModel, Field
 class Agent(BaseModel):
     """Agent <http://xmlns.com/foaf/0.1/Agent>."""
     _class_iri: ClassVar[str] = "http://xmlns.com/foaf/0.1/Agent"
-    mbox: Thing | list[Thing] | None = Field(default=None, json_schema_extra={"_property_iri": "http://xmlns.com/foaf/0.1/mbox"})
+    mbox: list[Thing] = Field(default_factory=list, json_schema_extra={"_property_iri": "http://xmlns.com/foaf/0.1/mbox"})
     """personal mailbox <http://xmlns.com/foaf/0.1/mbox>."""
 
 
@@ -105,6 +105,7 @@ class Thing(BaseModel):
     External class referenced but not defined in this ontology.
     """
     _class_iri: ClassVar[str] = "http://www.w3.org/2002/07/owl#Thing"
+    """<http://www.w3.org/2002/07/owl#Thing>."""
 ```
 
 
@@ -134,13 +135,13 @@ ex:relatedConcept a rdf:Property ;
 [testmark]:# (expected-2)
 ```python
 from __future__ import annotations
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class Resource(BaseModel):
     """Resource <http://example.org/Resource>."""
-    relatedConcept: Concept | list[Concept] | None = None
-    relatedThing: Thing | list[Thing] | None = None
+    relatedConcept: list[Concept] = Field(default_factory=list)
+    relatedThing: list[Thing] = Field(default_factory=list)
 
 
 class Concept(BaseModel):
@@ -188,7 +189,7 @@ ex:owns a rdf:Property ;
 [testmark]:# (expected-3)
 ```python
 from __future__ import annotations
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class Organization(BaseModel):
@@ -198,8 +199,11 @@ class Organization(BaseModel):
 
 class Person(BaseModel):
     """Person <http://example.org/Person>."""
-    owns: Thing | list[Thing] | None = None
-    worksFor: Organization | list[Organization] | None = None
+    owns: list[Thing] = Field(default_factory=list)
+    """<http://example.org/owns>."""
+
+    worksFor: list[Organization] = Field(default_factory=list)
+    """<http://example.org/worksFor>."""
 
 
 class Thing(BaseModel):
@@ -233,10 +237,11 @@ ex:name a rdf:Property ;
 [testmark]:# (expected-4)
 ```python
 from __future__ import annotations
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class Resource(BaseModel):
     """Resource <http://example.org/Resource>."""
-    name: str | list[str] | None = None
+    name: list[str] = Field(default_factory=list)
+    """<http://example.org/name>."""
 ```

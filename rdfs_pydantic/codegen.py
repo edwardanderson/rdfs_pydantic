@@ -90,7 +90,7 @@ def generate_property_line(
     
     Args:
         prop_name: Name of the property
-        prop_type: Type annotation for the property (e.g., "str | list[str] | None")
+        prop_type: Type annotation for the property (e.g., "list[str]" or "list[Type1 | Type2]")
         indent: Indentation string
         prop_iri_for_field: Optional IRI for the property (used in Field json_schema_extra)
         prop_iri_for_docstring: Optional IRI for the property (used in docstring)
@@ -98,32 +98,31 @@ def generate_property_line(
         comment: Optional comment for the property (used in docstring)
         
     Returns:
-        Property definition line(s), including docstring if label or comment provided
+        Property definition line(s), including docstring if label, comment, or property IRI is provided
     """
     lines = []
     
-    # Build the base field call if we have a property IRI for field metadata
     if prop_iri_for_field:
         json_schema_extra = f'{{"_property_iri": "{prop_iri_for_field}"}}'
-        # Type already includes | None, so use it directly
-        lines.append(f"{indent}{prop_name}: {prop_type} = Field(default=None, json_schema_extra={json_schema_extra})")
+        lines.append(f"{indent}{prop_name}: {prop_type} = Field(default_factory=list, json_schema_extra={json_schema_extra})")
     else:
-        # Original behavior without IRI: type already includes | None, so just use it
-        if prop_type.startswith("list["):
-            lines.append(f"{indent}{prop_name}: {prop_type} = []")
-        else:
-            lines.append(f"{indent}{prop_name}: {prop_type} = None")
+        lines.append(f"{indent}{prop_name}: {prop_type} = Field(default_factory=list)")
     
-    # Add docstring if label or comment provided
-    if label or comment:
+    # Add docstring if label, comment, or IRI is provided
+    if label or comment or prop_iri_for_docstring:
         docstring_first = f'{indent}"""'
         if label:
             docstring_first += f'{label}'
         # Include IRI in docstring if available
+        iri_only_bang_suffix = False
         if prop_iri_for_docstring:
             if label:
                 docstring_first += ' '
-            docstring_first += f'<{prop_iri_for_docstring}>.'
+            if not label and not comment and str(prop_iri_for_docstring).endswith("!"):
+                docstring_first += f'<{prop_iri_for_docstring}>'
+                iri_only_bang_suffix = True
+            else:
+                docstring_first += f'<{prop_iri_for_docstring}>.'
         
         if comment:
             lines.append(docstring_first)
@@ -136,10 +135,11 @@ def generate_property_line(
                 lines.append(f'{indent}{comment_line}')
             lines.append(f'{indent}"""')
         else:
-            lines.append(f'{docstring_first}"""')
-        # Add blank line after docstring for readability between properties
-        lines.append('')
-    
+            if iri_only_bang_suffix:
+                lines.append(f'{docstring_first}""".')
+            else:
+                lines.append(f'{docstring_first}"""')
+
     return '\n'.join(lines)
 
 
@@ -156,7 +156,7 @@ def generate_ellipsis_line(indent: str = "    ") -> str:
 
 
 def generate_model_config(indent: str = "    ", exclude_empty_defaults: bool = True) -> list[str]:
-    """Generate Pydantic model_config lines for serialisation optimization.
+    """Generate Pydantic model_config lines for serialisation optimisation.
     
     Args:
         indent: Indentation string

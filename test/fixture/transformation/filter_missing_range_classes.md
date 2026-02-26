@@ -17,13 +17,16 @@
 [testmark]:# (expected-0)
 ```python
 from __future__ import annotations
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class E1(BaseModel):
     """<http://example.org/E1>."""
-    p_missing: MissingClass | list[MissingClass] | None = None
-    p_valid: E1 | list[E1] | None = None
+    p_missing: list[MissingClass] = Field(default_factory=list)
+    """<http://example.org/p_missing>."""
+
+    p_valid: list[E1] = Field(default_factory=list)
+    """<http://example.org/p_valid>."""
 
 
 class MissingClass(BaseModel):

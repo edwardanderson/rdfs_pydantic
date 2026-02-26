@@ -34,8 +34,11 @@ from pydantic import BaseModel, Field
 class Person(BaseModel):
     """Person <http://schema.org/Person>."""
     _class_iri: ClassVar[str] = "http://schema.org/Person"
-    knows: Person | list[Person] | None = Field(default=None, json_schema_extra={"_property_iri": "http://schema.org/knows"})
-    name: str | list[str] | None = Field(default=None, json_schema_extra={"_property_iri": "http://schema.org/name"})
+    knows: list[Person] = Field(default_factory=list, json_schema_extra={"_property_iri": "http://schema.org/knows"})
+    """<http://schema.org/knows>."""
+
+    name: list[str] = Field(default_factory=list, json_schema_extra={"_property_iri": "http://schema.org/name"})
+    """<http://schema.org/name>."""
 ```
 
 [testmark]:# (arrange-ontology-complex)
@@ -82,19 +85,22 @@ from pydantic import BaseModel, Field
 class Agent(BaseModel):
     """Agent <http://schema.org/Agent>."""
     _class_iri: ClassVar[str] = "http://schema.org/Agent"
-    name: str | list[str] | None = Field(default=None, json_schema_extra={"_property_iri": "http://schema.org/name"})
+    name: list[str] = Field(default_factory=list, json_schema_extra={"_property_iri": "http://schema.org/name"})
+    """<http://schema.org/name>."""
 
 
 class Organization(Agent):
     """Organization <http://schema.org/Organization>."""
     _class_iri: ClassVar[str] = "http://schema.org/Organization"
-    foundingDate: str | list[str] | None = Field(default=None, json_schema_extra={"_property_iri": "http://schema.org/foundingDate"})
+    foundingDate: list[str] = Field(default_factory=list, json_schema_extra={"_property_iri": "http://schema.org/foundingDate"})
+    """<http://schema.org/foundingDate>."""
 
 
 class Person(Agent):
     """Person <http://schema.org/Person>."""
     _class_iri: ClassVar[str] = "http://schema.org/Person"
-    email: str | list[str] | None = Field(default=None, json_schema_extra={"_property_iri": "http://schema.org/email"})
+    email: list[str] = Field(default_factory=list, json_schema_extra={"_property_iri": "http://schema.org/email"})
+    """<http://schema.org/email>."""
 ```
 
 [testmark]:# (arrange-ontology-empty)
@@ -120,5 +126,6 @@ from pydantic import BaseModel
 class Thing(BaseModel):
     """<http://schema.org/Thing>."""
     _class_iri: ClassVar[str] = "http://schema.org/Thing"
+    """<http://schema.org/Thing>."""
     ...
 ```
