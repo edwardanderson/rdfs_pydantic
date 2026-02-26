@@ -154,12 +154,15 @@ Provide a JSON-LD `@context` to rename classes and properties:
 from rdflib import Graph
 from rdfs_pydantic import create_module
 
-g = Graph()
-g.parse(data="""
-    @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
-    <http://example.org/E1> a rdfs:Class .
-""", format="turtle")
+data = """
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 
+<http://example.org/E1> a rdfs:Class .
+"""
+
+g = Graph()
+g.bind('ex', 'http://example.org/')
+g.parse(data=data, format="turtle")
 context = {
     "@context": {
         "Entity": {"@id": "http://example.org/E1"}
@@ -167,7 +170,18 @@ context = {
 }
 
 code = create_module(g, context=context)
-# Generates: class Entity(BaseModel): ...
+```
+
+Generates `code` as:
+
+```python
+from __future__ import annotations
+from pydantic import BaseModel
+
+
+class Entity(BaseModel):
+    """<http://example.org/E1>."""
+    ...
 ```
 
 ## CLI

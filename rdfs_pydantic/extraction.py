@@ -60,7 +60,13 @@ def _validate_prefix_bindings(graph: Graph) -> None:
         error_msg = "The following IRIs lack bound prefixes:\n"
         for iri, rdf_type in unbound:
             error_msg += f"  - {iri} ({rdf_type})\n"
-        error_msg += "\nBind prefixes using graph.bind() or provide them in your RDF file."
+        error_msg += (
+            "\nBound prefixes are required for deterministic code generation "
+            "(stable class/module names and namespace grouping).\n"
+            "Fix by either:\n"
+            "  1) Declaring @prefix in your RDF/Turtle input, or\n"
+            "  2) Binding in code, e.g.: graph.bind(\"ex\", \"http://example.org/\")"
+        )
         raise ValueError(error_msg)
 
 
