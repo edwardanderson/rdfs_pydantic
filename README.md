@@ -25,10 +25,12 @@ Here's an example RDFS ontology using simple artist and artwork classes.
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 
 ex:Agent a rdfs:Class ;
+    rdfs:label "Agent" ;
     rdfs:comment "A person or organisation" .
 
 ex:Artist a rdfs:Class ;
     rdfs:subClassOf ex:Agent ;
+    rdfs:label "Artist" ;
     rdfs:comment "A creator of artworks" .
 
 ex:Artwork a rdfs:Class ;
@@ -41,6 +43,8 @@ ex:Exhibition a rdfs:Class ;
     rdfs:comment "A curated collection of artworks" .
 
 ex:name a rdf:Property ;
+    rdfs:label "Name" ;
+    rdfs:comment "The name of the resource" ;
     rdfs:domain ex:Agent ;
     rdfs:range rdfs:Literal .
 
@@ -77,16 +81,19 @@ from pydantic import BaseModel, Field
 
 
 class Agent(BaseModel):
-    """<http://example.org/Agent>.
+    """Agent <http://example.org/Agent>.
 
     A person or organisation.
     """
     name: list[str] = Field(default_factory=list)
-    """<http://example.org/name>."""
+    """Name <http://example.org/name>.
+
+    The name of the resource.
+    """
 
 
 class Artist(Agent):
-    """<http://example.org/Artist>.
+    """Artist <http://example.org/Artist>.
 
     A creator of artworks.
     """
