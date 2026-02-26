@@ -156,7 +156,7 @@ def generate_ellipsis_line(indent: str = "    ") -> str:
 
 
 def generate_model_config(indent: str = "    ", exclude_empty_defaults: bool = True) -> list[str]:
-    """Generate Pydantic model_config lines for serialisation optimization.
+    """Generate Pydantic model_config lines for serialisation optimisation.
     
     Args:
         indent: Indentation string

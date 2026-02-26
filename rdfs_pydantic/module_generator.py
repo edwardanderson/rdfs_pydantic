@@ -174,35 +174,13 @@ def _emit_namespace_group(lines: list, classes_in_prefix: list, classes: dict, p
         
         # Properties or ellipsis
         if group_class_info.properties:
-            sorted_prop_names = sorted(group_class_info.properties)
-            class_has_internal_range_property = any(
-                _property_has_internal_range(group_class_info.properties[prop_name], classes)
-                for prop_name in sorted_prop_names
+            _append_class_properties(
+                lines,
+                group_class_info.properties,
+                classes,
+                emit_iris,
+                "        ",
             )
-            for idx, prop_name in enumerate(sorted_prop_names):
-                prop = group_class_info.properties[prop_name]
-                include_prop_iri = _should_include_property_iri_docstring(
-                    prop,
-                    classes,
-                    emit_iris,
-                    class_has_internal_range_property,
-                )
-                lines.append(
-                    generate_property_line(
-                        prop.name,
-                        prop.type_annotation,
-                        "        ",
-                        prop_iri_for_field=prop.iri if emit_iris else None,
-                        prop_iri_for_docstring=prop.iri if (include_prop_iri or prop.label or prop.comment) else None,
-                        label=prop.label,
-                        comment=prop.comment,
-                    )
-                )
-                if idx < len(sorted_prop_names) - 1 and (prop.label or prop.comment or include_prop_iri):
-                    lines.append("")
-            last_prop = group_class_info.properties[sorted_prop_names[-1]]
-            if last_prop.label or last_prop.comment:
-                lines.append("")
         else:
             lines.append(generate_ellipsis_line("        "))
         lines.append("")
@@ -237,39 +215,60 @@ def _emit_single_class(lines: list, class_uri: str, classes: dict, indent: str, 
     
     # Properties or ellipsis
     if class_info.properties:
-        sorted_prop_names = sorted(class_info.properties)
-        class_has_internal_range_property = any(
-            _property_has_internal_range(class_info.properties[prop_name], classes)
-            for prop_name in sorted_prop_names
+        _append_class_properties(
+            lines,
+            class_info.properties,
+            classes,
+            emit_iris,
+            indent + "    ",
         )
-        for idx, prop_name in enumerate(sorted_prop_names):
-            prop = class_info.properties[prop_name]
-            include_prop_iri = _should_include_property_iri_docstring(
-                prop,
-                classes,
-                emit_iris,
-                class_has_internal_range_property,
-            )
-            lines.append(
-                generate_property_line(
-                    prop.name,
-                    prop.type_annotation,
-                    indent + "    ",
-                    prop_iri_for_field=prop.iri if emit_iris else None,
-                    prop_iri_for_docstring=prop.iri if (include_prop_iri or prop.label or prop.comment) else None,
-                    label=prop.label,
-                    comment=prop.comment,
-                )
-            )
-            if idx < len(sorted_prop_names) - 1 and (prop.label or prop.comment or include_prop_iri):
-                lines.append("")
-        last_prop = class_info.properties[sorted_prop_names[-1]]
-        if last_prop.label or last_prop.comment:
-            lines.append("")
     else:
         lines.append(generate_ellipsis_line(indent + "    "))
     lines.append("")
     lines.append("")
+
+
+def _append_class_properties(lines: list, properties: dict, classes: dict, emit_iris: bool, indent: str) -> None:
+    """Append generated property lines for a class with stable spacing behavior."""
+    sorted_prop_names = sorted(properties)
+    class_has_internal_range_property = any(
+        _property_has_internal_range(properties[prop_name], classes)
+        for prop_name in sorted_prop_names
+    )
+
+    include_iri_map: dict[str, bool] = {}
+    for prop_name in sorted_prop_names:
+        prop = properties[prop_name]
+        include_iri_map[prop_name] = _should_include_property_iri_docstring(
+            prop,
+            classes,
+            emit_iris,
+            class_has_internal_range_property,
+        )
+
+    for idx, prop_name in enumerate(sorted_prop_names):
+        prop = properties[prop_name]
+        include_prop_iri = include_iri_map[prop_name]
+        lines.append(
+            generate_property_line(
+                prop.name,
+                prop.type_annotation,
+                indent,
+                prop_iri_for_field=prop.iri if emit_iris else None,
+                prop_iri_for_docstring=prop.iri if (include_prop_iri or prop.label or prop.comment) else None,
+                label=prop.label,
+                comment=prop.comment,
+            )
+        )
+
+        has_docstring_block = bool(prop.label or prop.comment or include_prop_iri)
+        if idx < len(sorted_prop_names) - 1 and has_docstring_block:
+            lines.append("")
+
+    if sorted_prop_names:
+        last_prop = properties[sorted_prop_names[-1]]
+        if last_prop.label or last_prop.comment:
+            lines.append("")
 
 
 def _get_parent_names(class_info, classes: dict, class_name_map: dict) -> list:
