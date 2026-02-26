@@ -297,9 +297,32 @@ def _qualify_property_types(classes: dict, class_name_map: dict) -> None:
             name_to_uris[class_name] = []
         name_to_uris[class_name].append((class_uri, qualified_name))
     
-    for class_info in classes.values():
+    for class_uri, class_info in classes.items():
         for prop_info in class_info.properties.values():
             prop_type = prop_info.type_annotation
+
+            def resolve_type_name(type_name: str) -> str:
+                candidates = name_to_uris.get(type_name, [])
+                if len(candidates) > 1:
+                    current_qualified = class_name_map.get(class_uri, class_info.name)
+                    if "." in current_qualified:
+                        current_prefix = current_qualified.split(".", 1)[0]
+                        for _, candidate_qualified in candidates:
+                            if candidate_qualified.startswith(f"{current_prefix}."):
+                                return candidate_qualified
+                return _qualify_type_name(type_name, prop_info, classes, class_name_map)
+
+            # Current format: "list[Type]" or "list[Type1 | Type2]"
+            if prop_type.startswith("list[") and prop_type.endswith("]"):
+                list_content = prop_type[5:-1]
+                type_parts = [t.strip() for t in list_content.split("|")]
+                qualified_parts = [
+                    resolve_type_name(type_name)
+                    for type_name in type_parts
+                ]
+                qualified_list_content = " | ".join(qualified_parts)
+                prop_info.type_annotation = f"list[{qualified_list_content}]"
+                continue
             
             # Parse and replace class names in the type annotation
             # Handle new format: "Type | list[Type] | None" or primitives
@@ -316,19 +339,13 @@ def _qualify_property_types(classes: dict, class_name_map: dict) -> None:
                     after_list = prop_type[list_end_idx + 1:]  # e.g., " | None"
                     
                     # Qualify the before_list part
-                    qualified_before = _qualify_type_name(before_list, prop_info, classes, class_name_map)
+                    qualified_before = resolve_type_name(before_list)
                     
                     # Qualify list_content (which may contain union types)
                     type_parts = [t.strip() for t in list_content.split("|")]
                     qualified_parts = []
                     for type_name in type_parts:
-                        resolved_name = type_name
-                        for range_uri in getattr(prop_info, "ranges", []) or []:
-                            range_uri_str = str(range_uri)
-                            if range_uri_str in classes and classes[range_uri_str].name == type_name:
-                                resolved_name = class_name_map.get(range_uri_str, type_name)
-                                break
-                        qualified_parts.append(resolved_name)
+                        qualified_parts.append(resolve_type_name(type_name))
                     
                     qualified_list_content = " | ".join(qualified_parts)
                     prop_info.type_annotation = f"{qualified_before} | list[{qualified_list_content}]{after_list}"

@@ -28,11 +28,11 @@ from pydantic import BaseModel, Field
 class ex1:
     class Person(BaseModel):
         """<http://example1.org/Person>."""
-        knows: list[Person] = Field(default_factory=list)
+        knows: list[ex1.Person] = Field(default_factory=list)
 
 
 class ex2:
     class Person(BaseModel):
         """<http://example2.org/Person>."""
-        friendOf: list[Person] = Field(default_factory=list)
+        friendOf: list[ex2.Person] = Field(default_factory=list)
 ```
