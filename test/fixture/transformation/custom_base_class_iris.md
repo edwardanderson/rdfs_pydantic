@@ -44,7 +44,8 @@ class Person(IRIExposingModel):
     """<http://schema.org/Person>."""
     _class_iri: ClassVar[str] = "http://schema.org/Person"
     
-    name: str | None = Field(default=None, json_schema_extra={"_property_iri": "http://schema.org/name"})
+    name: list[str] = Field(default_factort=list, json_schema_extra={"_property_iri": "http://schema.org/name"})
+    """<http://schema.org/name>."""
 ```
 
 [testmark]:# (arrange-ontology-type-exposure)
@@ -89,6 +90,9 @@ class Person(TypeExposingModel):
     """<http://schema.org/Person>."""
     _class_iri: ClassVar[str] = "http://schema.org/Person"
     
-    email: str | None = Field(default=None, json_schema_extra={"_property_iri": "http://schema.org/email"})
-    knows: list[Person] | None = Field(default=None, json_schema_extra={"_property_iri": "http://schema.org/knows"})
+    email: list[str] = Field(default_factory=list, json_schema_extra={"_property_iri": "http://schema.org/email"})
+    """<http://schema.org/email>."""
+
+    knows: list[Person] = Field(default_factory=list, json_schema_extra={"_property_iri": "http://schema.org/knows"})
+    """<http://schema.org/knows>."""
 ```

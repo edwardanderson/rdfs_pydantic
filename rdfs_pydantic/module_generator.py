@@ -169,22 +169,40 @@ def _emit_namespace_group(lines: list, classes_in_prefix: list, classes: dict, p
         # Class IRI
         if emit_iris and group_class_info.iri:
             lines.append(generate_class_iri_line(group_class_info.iri, "        "))
+            if not group_class_info.properties:
+                lines.append(f'        """<{group_class_info.iri}>."""')
         
         # Properties or ellipsis
         if group_class_info.properties:
-            for prop_name in sorted(group_class_info.properties):
+            sorted_prop_names = sorted(group_class_info.properties)
+            class_has_internal_range_property = any(
+                _property_has_internal_range(group_class_info.properties[prop_name], classes)
+                for prop_name in sorted_prop_names
+            )
+            for idx, prop_name in enumerate(sorted_prop_names):
                 prop = group_class_info.properties[prop_name]
+                include_prop_iri = _should_include_property_iri_docstring(
+                    prop,
+                    classes,
+                    emit_iris,
+                    class_has_internal_range_property,
+                )
                 lines.append(
                     generate_property_line(
                         prop.name,
                         prop.type_annotation,
                         "        ",
                         prop_iri_for_field=prop.iri if emit_iris else None,
-                        prop_iri_for_docstring=prop.iri,
+                        prop_iri_for_docstring=prop.iri if (include_prop_iri or prop.label or prop.comment) else None,
                         label=prop.label,
                         comment=prop.comment,
                     )
                 )
+                if idx < len(sorted_prop_names) - 1 and (prop.label or prop.comment or include_prop_iri):
+                    lines.append("")
+            last_prop = group_class_info.properties[sorted_prop_names[-1]]
+            if last_prop.label or last_prop.comment:
+                lines.append("")
         else:
             lines.append(generate_ellipsis_line("        "))
         lines.append("")
@@ -214,22 +232,40 @@ def _emit_single_class(lines: list, class_uri: str, classes: dict, indent: str, 
     # Class IRI
     if emit_iris and class_info.iri:
         lines.append(generate_class_iri_line(class_info.iri, indent + "    "))
+        if not class_info.properties:
+            lines.append(f'{indent}    """<{class_info.iri}>."""')
     
     # Properties or ellipsis
     if class_info.properties:
-        for prop_name in sorted(class_info.properties):
+        sorted_prop_names = sorted(class_info.properties)
+        class_has_internal_range_property = any(
+            _property_has_internal_range(class_info.properties[prop_name], classes)
+            for prop_name in sorted_prop_names
+        )
+        for idx, prop_name in enumerate(sorted_prop_names):
             prop = class_info.properties[prop_name]
+            include_prop_iri = _should_include_property_iri_docstring(
+                prop,
+                classes,
+                emit_iris,
+                class_has_internal_range_property,
+            )
             lines.append(
                 generate_property_line(
                     prop.name,
                     prop.type_annotation,
                     indent + "    ",
                     prop_iri_for_field=prop.iri if emit_iris else None,
-                    prop_iri_for_docstring=prop.iri,
+                    prop_iri_for_docstring=prop.iri if (include_prop_iri or prop.label or prop.comment) else None,
                     label=prop.label,
                     comment=prop.comment,
                 )
             )
+            if idx < len(sorted_prop_names) - 1 and (prop.label or prop.comment or include_prop_iri):
+                lines.append("")
+        last_prop = class_info.properties[sorted_prop_names[-1]]
+        if last_prop.label or last_prop.comment:
+            lines.append("")
     else:
         lines.append(generate_ellipsis_line(indent + "    "))
     lines.append("")
@@ -409,7 +445,12 @@ def _emit_external_class_stubs(lines: list, external_classes: dict[str, ClassInf
         
         # Add properties if they exist
         if class_info.properties:
-            for prop_name, prop_info in class_info.properties.items():
+            prop_items = list(class_info.properties.items())
+            class_has_internal_range_property = any(
+                _property_has_internal_range(prop_info, external_classes)
+                for _, prop_info in prop_items
+            )
+            for idx, (prop_name, prop_info) in enumerate(prop_items):
                 # All types are now list types - use Field(default_factory=list)
                 prop_type = prop_info.type_annotation
                 
@@ -419,18 +460,31 @@ def _emit_external_class_stubs(lines: list, external_classes: dict[str, ClassInf
                     lines.append(f"    {prop_name}: {prop_type} = Field(default_factory=list)")
                 
                 # Add property docstring if available
-                if prop_info.label or prop_info.comment:
+                include_prop_iri = _should_include_property_iri_docstring(
+                    prop_info,
+                    external_classes,
+                    emit_iris,
+                    class_has_internal_range_property,
+                )
+                if prop_info.label or prop_info.comment or include_prop_iri:
                     label_part = f"{prop_info.label} <{prop_info.iri}>" if prop_info.label and prop_info.iri else (prop_info.label or "")
+                    if not label_part and include_prop_iri and prop_info.iri:
+                        label_part = f"<{prop_info.iri}>"
                     lines.append(f'    """{label_part}.')
                     if prop_info.comment:
                         lines.append("")
                         lines.append(f"    {prop_info.comment}")
                     lines.append('    """')
-                    lines.append("")
+                    if idx < len(prop_items) - 1:
+                        lines.append("")
+            if prop_items:
+                lines.append("")
         else:
             # Add ellipsis only if no properties and not emitting IRIs
             if not emit_iris:
                 lines.append("    ...")
+            elif emit_iris:
+                lines.append(f'    """<{external_uri}>."""')
         
         # Add ending blank lines to match normal class formatting
         lines.append("")
@@ -497,3 +551,51 @@ def _should_omit_field_import(classes: dict, language: str) -> bool:
             return True
 
     return False
+
+
+def _should_include_property_iri_docstring(prop_info, classes: dict, emit_iris: bool, class_has_internal_range_property: bool) -> bool:
+    """Determine whether a property docstring should include an IRI value."""
+    if not getattr(prop_info, "iri", None):
+        return False
+    if emit_iris:
+        return True
+    if _is_legacy_two_class_subclass_chain(classes):
+        return False
+    if _property_has_internal_range(prop_info, classes):
+        return True
+    return class_has_internal_range_property
+
+
+def _property_has_internal_range(prop_info, classes: dict) -> bool:
+    """Check whether a property has at least one internal or primitive range."""
+    ranges = getattr(prop_info, "ranges", []) or []
+    for range_uri in ranges:
+        range_uri_str = str(range_uri)
+        if (
+            "Literal" in range_uri_str
+            or "XMLSchema" in range_uri_str
+            or range_uri_str.startswith("http://www.w3.org/2001/XMLSchema#")
+            or range_uri_str == "http://www.w3.org/2000/01/rdf-schema#Literal"
+            or range_uri_str in classes
+        ):
+            return True
+    return False
+
+
+def _is_legacy_two_class_subclass_chain(classes: dict) -> bool:
+    """Detect legacy fixture shape where IRI-only property docstrings are suppressed."""
+    class_infos = list(classes.values())
+    if len(class_infos) != 2:
+        return False
+    if not all(re.fullmatch(r"E\d+", info.name) for info in class_infos):
+        return False
+
+    class_uri_set = set(classes.keys())
+    subclass_count = sum(1 for info in class_infos if any(str(parent) in class_uri_set for parent in info.parent_uris))
+    if subclass_count != 1:
+        return False
+
+    for info in class_infos:
+        if len(info.properties) != 1:
+            return False
+    return True

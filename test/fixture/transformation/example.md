@@ -26,5 +26,8 @@ class Example(BaseModel):
     Example comment.
     """
     seeAlso: list[Example] = Field(default_factory=list)
+    """<http://example.org/seeAlso>."""
+
     value: list[str] = Field(default_factory=list)
+    """<http://example.org/value>."""
 ```

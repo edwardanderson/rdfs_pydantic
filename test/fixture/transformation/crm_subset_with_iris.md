@@ -55,22 +55,31 @@ class Address(BaseModel):
     """Address <http://schema.org/Address>."""
     _class_iri: ClassVar[str] = "http://schema.org/Address"
     
-    streetAddress: str | None = Field(default=None, json_schema_extra={"_property_iri": "http://schema.org/streetAddress"})
+    streetAddress: list[str] = Field(default_factory=list, json_schema_extra={"_property_iri": "http://schema.org/streetAddress"})
+    """<http://schema.org/streetAddress>."""
 
 
 class ContactPoint(BaseModel):
     """Contact Point <http://schema.org/ContactPoint>."""
     _class_iri: ClassVar[str] = "http://schema.org/ContactPoint"
     
-    email: str | None = Field(default=None, json_schema_extra={"_property_iri": "http://schema.org/email"})
-    telephone: str | None = Field(default=None, json_schema_extra={"_property_iri": "http://schema.org/telephone"})
+    email: list[str] = Field(default_factory=list, json_schema_extra={"_property_iri": "http://schema.org/email"})
+    """<http://schema.org/email>."""
+
+    telephone: list[str] = Field(default_factory=list, json_schema_extra={"_property_iri": "http://schema.org/telephone"})
+    """<http://schema.org/telephone>."""
 
 
 class Company(BaseModel):
     """Company <http://schema.org/Company>."""
     _class_iri: ClassVar[str] = "http://schema.org/Company"
     
-    address: Address | list[Address] | None = Field(default=None, json_schema_extra={"_property_iri": "http://schema.org/address"})
-    contactPoint: ContactPoint | list[ContactPoint] | None = Field(default=None, json_schema_extra={"_property_iri": "http://schema.org/contactPoint"})
-    name: str | None = Field(default=None, json_schema_extra={"_property_iri": "http://schema.org/name"})
+    address: list[Address] = Field(default_factory=list, json_schema_extra={"_property_iri": "http://schema.org/address"})
+    """<http://schema.org/address>."""
+
+    contactPoint: list[ContactPoint] = Field(default_factory=list, json_schema_extra={"_property_iri": "http://schema.org/contactPoint"})
+    """<http://schema.org/contactPoint>"""
+
+    name: list[str] = Field(default_factory=list, json_schema_extra={"_property_iri": "http://schema.org/name"})
+    """<http://schema.org/name>."""
 ```

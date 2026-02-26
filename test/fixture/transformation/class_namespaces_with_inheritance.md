@@ -26,6 +26,7 @@ class ex1:
     class Entity(BaseModel):
         """<http://example1.org/Entity>."""
         prop: list[str] = Field(default_factory=list)
+        """<http://example1.org/prop>."""
 
 
 class ex2:

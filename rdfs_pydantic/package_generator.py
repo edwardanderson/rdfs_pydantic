@@ -231,7 +231,7 @@ def _write_class_file(local: str, class_uri: str, prefix: str, class_list: list[
             package_prop_type = _to_package_property_type(prop.type_annotation)
             lines.append(f"    {prop.name}: {package_prop_type} = None")
 
-            if prop.label or prop.comment:
+            if prop.label or prop.comment or prop.iri:
                 docstring_first = '    """'
                 if prop.label:
                     docstring_first += f"{prop.label}"

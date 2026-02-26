@@ -101,4 +101,5 @@ from pydantic import BaseModel, Field
 class Entity(BaseModel):
     """<http://example.org/E1>."""
     property1: list[Entity] = Field(default_factory=list)
+    """<http://example.org/p1>."""
 ```

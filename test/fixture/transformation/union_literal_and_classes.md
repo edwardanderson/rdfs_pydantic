@@ -26,4 +26,5 @@ class Email(BaseModel):
 class Person(BaseModel):
     """<http://example.org/Person>."""
     contact: list[Email | str | int] = Field(default_factory=list)
+    """<http://example.org/contact>."""
 ```

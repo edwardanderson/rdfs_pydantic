@@ -46,6 +46,7 @@ class Person(BaseModel):
     """
 
     relatedTo: list[Thing] = Field(default_factory=list)
+    """<http://example.org/relatedTo>."""
 
 
 class Thing(BaseModel):

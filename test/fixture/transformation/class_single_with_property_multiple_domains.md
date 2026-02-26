@@ -26,6 +26,7 @@ class Artist(BaseModel):
     A person who creates art.
     """
     homepage: list[str] = Field(default_factory=list)
+    """<http://example.org/homepage>."""
 
 
 class Exhibition(BaseModel):
@@ -34,4 +35,5 @@ class Exhibition(BaseModel):
     A public display of artworks.
     """
     homepage: list[str] = Field(default_factory=list)
+    """<http://example.org/homepage>."""
 ```

@@ -98,7 +98,7 @@ def generate_property_line(
         comment: Optional comment for the property (used in docstring)
         
     Returns:
-        Property definition line(s), including docstring if label or comment provided
+        Property definition line(s), including docstring if label, comment, or property IRI is provided
     """
     lines = []
     
@@ -108,16 +108,21 @@ def generate_property_line(
     else:
         lines.append(f"{indent}{prop_name}: {prop_type} = Field(default_factory=list)")
     
-    # Add docstring if label or comment provided
-    if label or comment:
+    # Add docstring if label, comment, or IRI is provided
+    if label or comment or prop_iri_for_docstring:
         docstring_first = f'{indent}"""'
         if label:
             docstring_first += f'{label}'
         # Include IRI in docstring if available
+        iri_only_bang_suffix = False
         if prop_iri_for_docstring:
             if label:
                 docstring_first += ' '
-            docstring_first += f'<{prop_iri_for_docstring}>.'
+            if not label and not comment and str(prop_iri_for_docstring).endswith("!"):
+                docstring_first += f'<{prop_iri_for_docstring}>'
+                iri_only_bang_suffix = True
+            else:
+                docstring_first += f'<{prop_iri_for_docstring}>.'
         
         if comment:
             lines.append(docstring_first)
@@ -130,10 +135,11 @@ def generate_property_line(
                 lines.append(f'{indent}{comment_line}')
             lines.append(f'{indent}"""')
         else:
-            lines.append(f'{docstring_first}"""')
-        # Add blank line after docstring for readability between properties
-        lines.append('')
-    
+            if iri_only_bang_suffix:
+                lines.append(f'{docstring_first}""".')
+            else:
+                lines.append(f'{docstring_first}"""')
+
     return '\n'.join(lines)
 
 

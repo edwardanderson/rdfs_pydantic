@@ -18,4 +18,5 @@ from pydantic import BaseModel, Field
 class E1(BaseModel):
     """<http://example.org/E1>."""
     p1: list[E1] = Field(default_factory=list)
+    """<http://example.org/p1>."""
 ```

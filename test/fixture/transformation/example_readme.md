@@ -49,6 +49,7 @@ class Agent(BaseModel):
     A person or organisation.
     """
     name: list[str] = Field(default_factory=list)
+    """<http://example.org/name>."""
 
 
 class Artist(Agent):
@@ -57,6 +58,7 @@ class Artist(Agent):
     A creator of artworks.
     """
     created: list[Painting] = Field(default_factory=list)
+    """<http://example.org/created>."""
 
 
 class Artwork(BaseModel):
@@ -65,6 +67,7 @@ class Artwork(BaseModel):
     An artistic creation.
     """
     artist: list[Artist] = Field(default_factory=list)
+    """<http://example.org/artist>."""
 
 
 class Exhibition(BaseModel):
@@ -73,6 +76,7 @@ class Exhibition(BaseModel):
     A curated collection of artworks.
     """
     artworks: list[Painting | Artwork] = Field(default_factory=list)
+    """<http://example.org/artworks>."""
 
 
 class Painting(Artwork):

@@ -29,10 +29,12 @@ class ex1:
     class Person(BaseModel):
         """<http://example1.org/Person>."""
         knows: list[ex1.Person] = Field(default_factory=list)
+        """<http://example1.org/knows>."""
 
 
 class ex2:
     class Person(BaseModel):
         """<http://example2.org/Person>."""
         friendOf: list[ex2.Person] = Field(default_factory=list)
+        """<http://example2.org/friendOf>."""
 ```

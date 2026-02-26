@@ -105,6 +105,7 @@ class Thing(BaseModel):
     External class referenced but not defined in this ontology.
     """
     _class_iri: ClassVar[str] = "http://www.w3.org/2002/07/owl#Thing"
+    """<http://www.w3.org/2002/07/owl#Thing>."""
 ```
 
 
@@ -199,7 +200,10 @@ class Organization(BaseModel):
 class Person(BaseModel):
     """Person <http://example.org/Person>."""
     owns: list[Thing] = Field(default_factory=list)
+    """<http://example.org/owns>."""
+
     worksFor: list[Organization] = Field(default_factory=list)
+    """<http://example.org/worksFor>."""
 
 
 class Thing(BaseModel):
@@ -239,4 +243,5 @@ from pydantic import BaseModel, Field
 class Resource(BaseModel):
     """Resource <http://example.org/Resource>."""
     name: list[str] = Field(default_factory=list)
+    """<http://example.org/name>."""
 ```
